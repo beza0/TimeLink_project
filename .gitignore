@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.vite
+
+# Maven (backend)
+backend/target/
 
 # Editor directories and files
 .vscode/*
