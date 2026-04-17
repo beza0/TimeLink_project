@@ -43,7 +43,11 @@ import { useAuth } from "../contexts/AuthContext";
 import { formatTemplate } from "../language";
 import { useEffect, useMemo, useState } from "react";
 import { fetchSkillById, type SkillDto } from "../api/skills";
-import { createExchangeRequest } from "../api/exchange";
+import {
+  createExchangeRequest,
+  fetchReceivedExchangeRequests,
+  type ExchangeRequestDto,
+} from "../api/exchange";
 import { apiErrorDisplayMessage } from "../api/client";
 import { initialsFromFullName } from "../lib/initials";
 
@@ -119,6 +123,17 @@ function pad2(v: number): string {
   return String(v).padStart(2, "0");
 }
 
+function formatSessionTime(
+  iso: string | null | undefined,
+  locale: string,
+): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString(locale === "tr" ? "tr-TR" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 function dateToYmd(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
@@ -149,7 +164,11 @@ export function SkillDetailPage({ onNavigate, skillId }: SkillDetailPageProps) {
   const { user, token } = useAuth();
   const s = t.skillDetail;
   const b = t.browse;
+  const p = t.profile;
   const [skill, setSkill] = useState<SkillDto | null>(null);
+  const [receivedTeachingForSkill, setReceivedTeachingForSkill] = useState<
+    ExchangeRequestDto[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [bookOpen, setBookOpen] = useState(false);
   const [bookMessage, setBookMessage] = useState("");
@@ -184,6 +203,31 @@ export function SkillDetailPage({ onNavigate, skillId }: SkillDetailPageProps) {
       c = true;
     };
   }, [skillId]);
+
+  useEffect(() => {
+    if (!token || !skill || !user?.id || skill.ownerId !== user.id) {
+      setReceivedTeachingForSkill([]);
+      return;
+    }
+    let cancelled = false;
+    fetchReceivedExchangeRequests(token)
+      .then((list) => {
+        if (cancelled) return;
+        setReceivedTeachingForSkill(
+          list.filter(
+            (req) =>
+              req.skillId === skill.id &&
+              (req.status === "ACCEPTED" || req.status === "COMPLETED"),
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setReceivedTeachingForSkill([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, skill?.id, skill?.ownerId, user?.id]);
 
   useEffect(() => {
     setBookMessage("");
@@ -326,6 +370,11 @@ export function SkillDetailPage({ onNavigate, skillId }: SkillDetailPageProps) {
       setBookTime(timeOptions[0]);
     }
   }, [hasAvailabilityConstraints, timeOptions, bookTime]);
+
+  const learnersCountForOwner = useMemo(
+    () => new Set(receivedTeachingForSkill.map((b) => b.requesterId)).size,
+    [receivedTeachingForSkill],
+  );
 
   const handleBookClick = () => {
     setBookErr(null);
@@ -508,7 +557,11 @@ export function SkillDetailPage({ onNavigate, skillId }: SkillDetailPageProps) {
                   <div className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-muted-foreground" />
                     <span>
-                      {formatTemplate(s.studentsCount, { n: "0" })}
+                      {formatTemplate(s.studentsCount, {
+                        n: isOwnListing
+                          ? String(learnersCountForOwner)
+                          : "0",
+                      })}
                     </span>
                   </div>
                   {levelLabel ? (
@@ -524,6 +577,32 @@ export function SkillDetailPage({ onNavigate, skillId }: SkillDetailPageProps) {
                   </TabsList>
 
                   <TabsContent value="about" className="mt-6 space-y-4">
+                    {isOwnListing && receivedTeachingForSkill.length > 0 ? (
+                      <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {p.activeLearners}
+                        </p>
+                        <div className="space-y-2">
+                          {receivedTeachingForSkill.map((b) => (
+                            <div
+                              key={b.id}
+                              className="flex items-center justify-between gap-2 text-sm"
+                            >
+                              <span className="truncate text-foreground">
+                                {b.requesterName}
+                              </span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {formatSessionTime(
+                                  b.scheduledStartAt ?? null,
+                                  locale,
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div>
                       <h3 className="mb-2 text-lg text-foreground">
                         {s.whatYouLearn}

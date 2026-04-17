@@ -70,7 +70,12 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
   }, [locale, t]);
 
   const filteredSkills = useMemo(() => {
+    const myId = user?.id?.trim().toLowerCase();
     return catalog.filter((skill) => {
+      if (myId && skill.ownerId) {
+        if (skill.ownerId.trim().toLowerCase() === myId) return false;
+      }
+
       if (searchQuery) {
         const q = searchQuery.toLowerCase().trim();
         if (q && !skill.searchBlob.includes(q)) return false;
@@ -101,7 +106,7 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
 
       return true;
     });
-  }, [searchQuery, filters, catalog]);
+  }, [searchQuery, filters, catalog, user?.id]);
 
   const sortedSkills = useMemo(() => {
     const list = [...filteredSkills];

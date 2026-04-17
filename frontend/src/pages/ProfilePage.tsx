@@ -543,32 +543,6 @@ export function ProfilePage({
                             </div>
                           </div>
 
-                          {skillBookings.length > 0 ? (
-                            <div className="mb-4 rounded-lg border border-border/70 bg-background/70 p-3">
-                              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                {p.activeLearners}
-                              </p>
-                              <div className="space-y-2">
-                                {skillBookings.slice(0, 3).map((b) => (
-                                  <div
-                                    key={b.id}
-                                    className="flex items-center justify-between gap-2 text-sm"
-                                  >
-                                    <span className="truncate text-foreground">
-                                      {b.requesterName}
-                                    </span>
-                                    <span className="shrink-0 text-xs text-muted-foreground">
-                                      {formatSessionTime(
-                                        b.scheduledStartAt ?? null,
-                                        locale,
-                                      )}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
                           {preview ? (
                             <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
                               {preview}
