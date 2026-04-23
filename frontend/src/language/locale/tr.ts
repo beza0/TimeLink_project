@@ -256,7 +256,7 @@ export const tr: Translation = {
     cancel: "İptal",
     cancelTitle: "Oturum iptal edilsin mi?",
     cancelDescription:
-      "Bu oturumu iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.\n\nZaman krediniz iade edilir ancak {{name}} bilgilendirilir.",
+      "Bu oturumu iptal etmek istediğinize emin misiniz? Bu işlem geri alınamaz.\n\nKrediler yalnızca oturum “tamamlandı” dendiğinde alınan kişiden düşer; sadece rezervasyon için bakiyeniz değişmez. {{name}} bilgilendirilir.",
     keepSession: "Oturumu koru",
     yesCancel: "Evet, iptal et",
   },
@@ -427,9 +427,20 @@ export const tr: Translation = {
     emptyThreadTitle: "Bir konuşma seçin",
     emptyThreadBody: "Mesajlarınız burada görünecek.",
     actionError: "İşlem başarısız. Tekrar deneyin.",
+    acceptedBadge: "Onaylandı",
     rejectedBadge: "Reddedildi",
+    cancelledBadge: "İptal edildi",
     completedBadge: "Tamamlandı",
     rejectedHint: "Bu rezervasyon isteği reddedildi.",
+    acceptedSessionHint:
+      "Oturum onaylandı. Planlanan başlangıç saatine kadar her iki taraf da iptal edebilir. Zaman kredisi sadece eğitmen oturumu “tamamlandı” diye işaretlediğinde alınan tarafın bakiyesinden düşer.",
+    cancelledHint:
+      "Bu rezervasyon iptal edildi. Rezervasyonda kredi rehin alınmaz; tamamlandı denince düşer — bu yüzden bakiyeniz değişmedi.",
+    cancelSession: "Oturumu iptal et",
+    cancelPending: "Talebi geri çek",
+    cancelConfirmTitle: "Bu rezervasyon iptal edilsin mi?",
+    cancelConfirmBody:
+      "Geri alınamaz. Zaman kredileri yalnızca oturum tamamlanınca hareket eder; bu yüzden bu işlemde bakiyeniz değişmez. Karşı taraf bilgilendirilir.",
     sessionCompletedHint:
       "Bu oturum tamamlandı. Mesaj geçmişini okuyabilirsiniz.",
     createBooking: "Yeni rezervasyon oluştur",

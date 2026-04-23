@@ -254,9 +254,9 @@ export const en = {
     cancel: "Cancel",
     cancelTitle: "Cancel Session?",
     cancelDescription:
-      "Are you sure you want to cancel this session? This action cannot be undone.\n\nYour time credits will be refunded, but {{name}} will be notified.",
+      "Are you sure you want to cancel this session? This action cannot be undone.\n\nCredits are only taken when the session is marked complete, so your balance is unchanged. {{name}} will be notified.",
     keepSession: "Keep Session",
-    yesCancel: "Yes, Cancel Session",
+    yesCancel: "Yes, cancel",
   },
   auth: {
     login: {
@@ -424,9 +424,20 @@ export const en = {
     emptyThreadTitle: "Select a conversation",
     emptyThreadBody: "When you have message threads, they will appear here.",
     actionError: "Something went wrong. Try again.",
+    acceptedBadge: "Confirmed",
     rejectedBadge: "Declined",
+    cancelledBadge: "Cancelled",
     completedBadge: "Completed",
     rejectedHint: "This booking request was declined.",
+    acceptedSessionHint:
+      "Session is confirmed. Either side can cancel before the scheduled start. Time credits are only debited when the host marks the session complete.",
+    cancelledHint:
+      "This booking was cancelled. Time credits are not held when a session is only reserved — nothing is refunded, but you were not charged yet.",
+    cancelSession: "Cancel session",
+    cancelPending: "Withdraw request",
+    cancelConfirmTitle: "Cancel this booking?",
+    cancelConfirmBody:
+      "This cannot be undone. Time credits in TimeLink are only moved when the session is completed, so your balance is unchanged. The other person will be notified.",
     sessionCompletedHint:
       "This session is completed. You can still read the message history.",
     createBooking: "Create booking",

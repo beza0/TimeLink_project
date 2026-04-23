@@ -11,6 +11,7 @@ import { cn } from "../components/ui/utils";
 import {
   Modal,
   ModalContent,
+  ModalDescription,
   ModalFooter,
   ModalHeader,
   ModalTitle,
@@ -32,6 +33,7 @@ import { formatTemplate } from "../language";
 import { enUS, tr as trLocale } from "react-day-picker/locale";
 import {
   acceptExchangeRequest,
+  cancelExchangeRequest,
   createCounterOffer,
   fetchExchangeMessages,
   fetchReceivedExchangeRequests,
@@ -92,6 +94,7 @@ type UiStatus =
   | "pending-outgoing"
   | "accepted"
   | "rejected"
+  | "cancelled"
   | "completed";
 
 type ConversationRow = {
@@ -115,7 +118,12 @@ function isPendingExchangeStatus(status: string | undefined): boolean {
 
 function isMessageEnabledStatus(status: string | undefined): boolean {
   const st = normalizeExchangeStatus(status);
-  return st === "ACCEPTED" || st === "REJECTED" || st === "COMPLETED";
+  return (
+    st === "ACCEPTED" ||
+    st === "REJECTED" ||
+    st === "CANCELLED" ||
+    st === "COMPLETED"
+  );
 }
 
 function sameUserId(a: string | undefined, b: string | undefined): boolean {
@@ -149,6 +157,7 @@ function toUiStatus(
   myId: string | undefined,
 ): UiStatus {
   const st = normalizeExchangeStatus(ex.status);
+  if (st === "CANCELLED") return "cancelled";
   if (st === "ACCEPTED") return "accepted";
   if (st === "REJECTED") return "rejected";
   if (st === "COMPLETED") return "completed";
@@ -157,6 +166,23 @@ function toUiStatus(
     return isPendingOutgoingForMe(ex, myId) ? "pending-outgoing" : "pending-incoming";
   }
   return "completed";
+}
+
+function canCancelExchange(
+  ex: ExchangeRequestDto,
+  myId: string | undefined,
+): boolean {
+  if (!myId) return false;
+  const st = normalizeExchangeStatus(ex.status);
+  if (st === "PENDING" && sameUserId(ex.requesterId, myId)) return true;
+  if (st === "ACCEPTED") {
+    if (!sameUserId(ex.requesterId, myId) && !sameUserId(ex.ownerId, myId)) {
+      return false;
+    }
+    if (!ex.scheduledStartAt) return true;
+    return Date.now() < new Date(ex.scheduledStartAt).getTime();
+  }
+  return false;
 }
 
 function mergeExchanges(
@@ -216,6 +242,7 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
   const [bookCalendarMonth, setBookCalendarMonth] = useState<Date>(() =>
     ymdToLocalDate(tomorrowDateStr()),
   );
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const bookDateMin = useMemo(() => {
     const d = new Date();
@@ -280,6 +307,10 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
     selected != null &&
     selected.uiStatus === "rejected" &&
     sameUserId(selected.ex.requesterId, user?.id);
+
+  const canCancelSelected = Boolean(
+    selected && canCancelExchange(selected.ex, user?.id),
+  );
 
   const loadThread = useCallback(
     async (row: ConversationRow | null) => {
@@ -367,6 +398,19 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
     try {
       await rejectExchangeRequest(token, id);
       await loadList();
+    } catch (e) {
+      setSendError(apiErrorDisplayMessage(e, m.actionError));
+    }
+  };
+
+  const handleCancelExchange = async () => {
+    if (!token || !selected) return;
+    setSendError(null);
+    try {
+      await cancelExchangeRequest(token, selected.id);
+      setCancelOpen(false);
+      await loadList();
+      setSelectedId(selected.id);
     } catch (e) {
       setSendError(apiErrorDisplayMessage(e, m.actionError));
     }
@@ -547,6 +591,16 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
                               {m.rejectedBadge}
                             </Badge>
                           )}
+                          {conv.uiStatus === "accepted" && (
+                            <Badge className="mt-2 bg-emerald-600/90 text-white">
+                              {m.acceptedBadge}
+                            </Badge>
+                          )}
+                          {conv.uiStatus === "cancelled" && (
+                            <Badge variant="secondary" className="mt-2">
+                              {m.cancelledBadge}
+                            </Badge>
+                          )}
                           {conv.uiStatus === "completed" && (
                             <Badge className="mt-2">{m.completedBadge}</Badge>
                           )}
@@ -651,6 +705,46 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
                           name: selected.otherName,
                         })}
                       </p>
+                      {canCancelSelected ? (
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-600/50 text-amber-900 dark:text-amber-200"
+                            onClick={() => setCancelOpen(true)}
+                          >
+                            <X className="mr-1 h-4 w-4" />
+                            {m.cancelPending}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {selected.uiStatus === "accepted" && (
+                    <div className="border-b border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                      <p className="text-sm text-foreground/90">{m.acceptedSessionHint}</p>
+                      {canCancelSelected ? (
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                            onClick={() => setCancelOpen(true)}
+                          >
+                            <X className="mr-1 h-4 w-4" />
+                            {m.cancelSession}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {selected.uiStatus === "cancelled" && (
+                    <div className="border-b border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
+                      <p>{m.cancelledHint}</p>
                     </div>
                   )}
 
@@ -744,6 +838,31 @@ export function MessagesPage({ onNavigate }: MessagesPageProps) {
           </Card>
         </div>
       </div>
+      <Modal open={cancelOpen} onOpenChange={setCancelOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>{m.cancelConfirmTitle}</ModalTitle>
+            <ModalDescription>
+              <span className="whitespace-pre-line block text-sm text-muted-foreground">
+                {m.cancelConfirmBody}
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button type="button" variant="outline" onClick={() => setCancelOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleCancelExchange()}
+            >
+              {selected?.uiStatus === "pending-outgoing" ? m.cancelPending : m.cancelSession}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       <Modal open={bookOpen} onOpenChange={setBookOpen}>
         <ModalContent>
           <ModalHeader>

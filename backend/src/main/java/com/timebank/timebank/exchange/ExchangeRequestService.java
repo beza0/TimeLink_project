@@ -146,6 +146,56 @@ public class ExchangeRequestService {
         return mapToResponse(updated);
     }
 
+    /**
+     * PENDING: yalnızca talep sahibi (geri çek). ACCEPTED: dersi veren veya alan, planlanan başlangıç anından önce.
+     * Zaman kredisi bu projede yalnızca {@link #completeRequest} içinde hareket eder; bu yüzden iptalde bakiyede geri dönmesi
+     * gereken bir bloke tutar yoktur.
+     */
+    @Transactional
+    public ExchangeRequestResponse cancelRequest(UUID requestId, String userEmail) {
+        String email = userEmail == null ? "" : userEmail.trim();
+        if (email.isEmpty()) {
+            throw new IllegalArgumentException("Kullanıcı e-postası gerekli");
+        }
+        ExchangeRequest ex = exchangeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
+
+        boolean isRequester = ex.getRequester().getEmail().equalsIgnoreCase(email);
+        boolean isOwner = ex.getSkill().getOwner().getEmail().equalsIgnoreCase(email);
+        if (!isRequester && !isOwner) {
+            throw new IllegalArgumentException("Bu talebi iptal etme yetkiniz yok");
+        }
+
+        ExchangeRequestStatus st = ex.getStatus();
+        if (st == ExchangeRequestStatus.CANCELLED) {
+            return mapToResponse(ex);
+        }
+        if (st == ExchangeRequestStatus.COMPLETED) {
+            throw new IllegalArgumentException("Tamamlanmış oturumlar iptal edilemez");
+        }
+        if (st == ExchangeRequestStatus.REJECTED) {
+            throw new IllegalArgumentException("Bu talep zaten reddedildi");
+        }
+
+        if (st == ExchangeRequestStatus.PENDING) {
+            if (!isRequester) {
+                throw new IllegalArgumentException("Bekleyen talebi yalnızca talep sahibi iptal edebilir (eğitmen red veya yanıt verebilir)");
+            }
+        } else if (st == ExchangeRequestStatus.ACCEPTED) {
+            Instant start = ex.getScheduledStartAt();
+            if (start != null && !Instant.now().isBefore(start)) {
+                throw new IllegalArgumentException("Oturum başlangıç zamanı geçti; iptal edilemez");
+            }
+        } else {
+            throw new IllegalArgumentException("Bu durumdaki talep iptal edilemez");
+        }
+
+        ex.setStatus(ExchangeRequestStatus.CANCELLED);
+        exchangeRequestRepository.save(ex);
+        notificationService.notifyExchangeCancelled(ex, userEmail);
+        return mapToResponse(ex);
+    }
+
     @Transactional
     public ExchangeRequestResponse counterOfferRequest(
             UUID requestId,

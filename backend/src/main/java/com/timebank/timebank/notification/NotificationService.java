@@ -72,6 +72,42 @@ public class NotificationService {
         userNotificationRepository.save(n);
     }
 
+    /**
+     * İptal anında taraftan sadece karşı tarafa gider. actorEmail iptal butonuna basan kullanıcının e-postasıdır.
+     */
+    @Transactional
+    public void notifyExchangeCancelled(ExchangeRequest ex, String actorEmail) {
+        if (ex.getRequester() == null || ex.getSkill() == null || ex.getSkill().getOwner() == null) {
+            return;
+        }
+        String e = actorEmail == null ? "" : actorEmail.trim();
+        if (e.isEmpty()) {
+            return;
+        }
+        User requester = ex.getRequester();
+        User owner = ex.getSkill().getOwner();
+        String actorName;
+        User notifyUser;
+        if (requester.getEmail().equalsIgnoreCase(e)) {
+            actorName = requester.getFullName();
+            notifyUser = owner;
+        } else if (owner.getEmail().equalsIgnoreCase(e)) {
+            actorName = owner.getFullName();
+            notifyUser = requester;
+        } else {
+            return;
+        }
+        String when = formatWhen(ex.getScheduledStartAt());
+        String title = "Rezervasyon iptal edildi";
+        String body = String.format(
+                "%s, \"%s\" (%s) için bu rezervasyonu iptal etti.",
+                actorName,
+                ex.getSkill().getTitle(),
+                when
+        );
+        userNotificationRepository.save(new UserNotification(notifyUser, title, body, ex));
+    }
+
     @Transactional
     public void sendSessionReminder(ExchangeRequest ex) {
         User owner = ex.getSkill().getOwner();

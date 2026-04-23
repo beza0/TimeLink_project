@@ -94,6 +94,13 @@ export function rejectExchangeRequest(token: string, requestId: string) {
   );
 }
 
+export function cancelExchangeRequest(token: string, requestId: string) {
+  return apiFetch<ExchangeRequestDto>(
+    `/api/exchange-requests/${requestId}/cancel`,
+    { method: "PUT", token },
+  );
+}
+
 export function createCounterOffer(
   token: string,
   requestId: string,

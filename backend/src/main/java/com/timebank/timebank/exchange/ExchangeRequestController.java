@@ -109,5 +109,13 @@ public class ExchangeRequestController {
         );
     }
 
-
+    @PutMapping("/{requestId}/cancel")
+    public ResponseEntity<ExchangeRequestResponse> cancelRequest(
+            @PathVariable UUID requestId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                exchangeRequestService.cancelRequest(requestId, authentication.getName())
+        );
+    }
 }
