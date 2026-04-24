@@ -15,6 +15,8 @@ export type ExchangeRequestDto = {
   pendingFromOwner?: boolean;
   status: string;
   createdAt: string;
+  sessionMeetingUrl?: string | null;
+  requesterAttendanceAckAt?: string | null;
 };
 
 export type ExchangeMessageDto = {
@@ -124,6 +126,34 @@ export function createCounterOffer(
       method: "POST",
       token,
       body: JSON.stringify(body),
+    },
+  );
+}
+
+export function updateExchangeSessionMeeting(
+  token: string,
+  exchangeId: string,
+  meetingUrl: string,
+) {
+  return apiFetch<ExchangeRequestDto>(
+    `/api/exchange-requests/${encodeURIComponent(exchangeId)}/meeting`,
+    {
+      method: "PUT",
+      token,
+      body: JSON.stringify({ meetingUrl: meetingUrl.trim() }),
+    },
+  );
+}
+
+export function acknowledgeRequesterAttendance(
+  token: string,
+  exchangeId: string,
+) {
+  return apiFetch<ExchangeRequestDto>(
+    `/api/exchange-requests/${encodeURIComponent(exchangeId)}/ack-attendance`,
+    {
+      method: "POST",
+      token,
     },
   );
 }

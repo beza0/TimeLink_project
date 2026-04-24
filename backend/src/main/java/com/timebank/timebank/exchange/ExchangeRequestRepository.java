@@ -2,6 +2,8 @@ package com.timebank.timebank.exchange;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -29,5 +31,16 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
             ExchangeRequestStatus status,
             Instant start,
             Instant end
+    );
+
+    /** Aynı kullanıcının kesişen kabul edilmiş oturumlarını ararken. */
+    @EntityGraph(attributePaths = {"skill", "skill.owner", "requester"})
+    @Query("SELECT e FROM ExchangeRequest e JOIN e.skill s " +
+            "WHERE e.status = :st " +
+            "AND e.scheduledStartAt IS NOT NULL " +
+            "AND (e.requester.id = :uid OR s.owner.id = :uid)")
+    List<ExchangeRequest> findAcceptedByUserInvolvement(
+            @Param("st") ExchangeRequestStatus st,
+            @Param("uid") UUID userId
     );
 }

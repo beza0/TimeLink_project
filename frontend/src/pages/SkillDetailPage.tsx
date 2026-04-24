@@ -39,6 +39,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import type { PageType } from "../App";
+import { useParams } from "react-router-dom";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { formatTemplate } from "../language";
@@ -56,7 +57,6 @@ interface SkillDetailPageProps {
   onNavigate?: (page: PageType) => void;
   /** Book için oturum yokken girişe git; giriş sonrası bu sayfaya dönmek için App kullanır */
   onLoginRequired?: () => void;
-  skillId: string | null;
 }
 
 function descriptionMain(desc: string): string {
@@ -165,8 +165,9 @@ const BOOKING_HORIZON_DAYS = 365;
 export function SkillDetailPage({
   onNavigate,
   onLoginRequired,
-  skillId,
 }: SkillDetailPageProps) {
+  const { skillId: paramSkillId } = useParams<{ skillId: string }>();
+  const skillId: string | null = paramSkillId?.trim() ? paramSkillId : null;
   const { t, locale } = useLanguage();
   const { user, token } = useAuth();
   const s = t.skillDetail;

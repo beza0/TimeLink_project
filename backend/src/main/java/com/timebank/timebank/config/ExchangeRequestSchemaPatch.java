@@ -41,6 +41,12 @@ public class ExchangeRequestSchemaPatch implements ApplicationRunner {
         patch(
                 "ALTER TABLE exchange_requests ADD COLUMN IF NOT EXISTS pending_from_owner BOOLEAN NOT NULL DEFAULT false",
                 "pending_from_owner");
+        patch(
+                "ALTER TABLE exchange_requests ADD COLUMN IF NOT EXISTS session_meeting_url varchar(2000)",
+                "session_meeting_url");
+        patch(
+                "ALTER TABLE exchange_requests ADD COLUMN IF NOT EXISTS requester_attendance_ack_at timestamptz",
+                "requester_attendance_ack_at");
     }
 
     private void patch(String sql, String label) {

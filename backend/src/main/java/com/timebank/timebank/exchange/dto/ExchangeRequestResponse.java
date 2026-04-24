@@ -20,6 +20,8 @@ public class ExchangeRequestResponse {
     private boolean pendingFromOwner;
     private ExchangeRequestStatus status;
     private Instant createdAt;
+    private String sessionMeetingUrl;
+    private Instant requesterAttendanceAckAt;
 
     public ExchangeRequestResponse(
             UUID id,
@@ -34,7 +36,9 @@ public class ExchangeRequestResponse {
             Instant scheduledStartAt,
             boolean pendingFromOwner,
             ExchangeRequestStatus status,
-            Instant createdAt
+            Instant createdAt,
+            String sessionMeetingUrl,
+            Instant requesterAttendanceAckAt
     ) {
         this.id = id;
         this.skillId = skillId;
@@ -49,6 +53,8 @@ public class ExchangeRequestResponse {
         this.pendingFromOwner = pendingFromOwner;
         this.status = status;
         this.createdAt = createdAt;
+        this.sessionMeetingUrl = sessionMeetingUrl;
+        this.requesterAttendanceAckAt = requesterAttendanceAckAt;
     }
 
     public UUID getId() {
@@ -101,5 +107,13 @@ public class ExchangeRequestResponse {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public String getSessionMeetingUrl() {
+        return sessionMeetingUrl;
+    }
+
+    public Instant getRequesterAttendanceAckAt() {
+        return requesterAttendanceAckAt;
     }
 }

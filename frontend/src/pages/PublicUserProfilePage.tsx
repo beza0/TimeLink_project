@@ -4,6 +4,7 @@ import { Button } from "../components/ui/button";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import type { PageType } from "../App";
 import {
   fetchPublicUserProfile,
@@ -25,6 +26,7 @@ function normalizeUrl(raw: string): string {
 }
 
 export function PublicUserProfilePage({ onNavigate }: Props) {
+  const { userId: userIdParam } = useParams<{ userId: string }>();
   const { t, locale } = useLanguage();
   const p = t.publicUserProfile;
   const { user, token } = useAuth();
@@ -38,11 +40,14 @@ export function PublicUserProfilePage({ onNavigate }: Props) {
       setLoading(false);
       return;
     }
-    let id: string | null = null;
-    try {
-      id = sessionStorage.getItem(PUBLIC_PROFILE_USER_ID_KEY);
-    } catch {
-      /* ignore */
+    let id: string | null =
+      userIdParam && userIdParam.trim() ? userIdParam.trim() : null;
+    if (!id) {
+      try {
+        id = sessionStorage.getItem(PUBLIC_PROFILE_USER_ID_KEY);
+      } catch {
+        /* ignore */
+      }
     }
     if (!id) {
       setError(p.notFound);
@@ -66,7 +71,7 @@ export function PublicUserProfilePage({ onNavigate }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [token, user?.id, onNavigate, p.loadError, p.notFound]);
+  }, [token, user?.id, onNavigate, p.loadError, p.notFound, userIdParam]);
 
   useEffect(() => {
     void load();

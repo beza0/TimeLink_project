@@ -1,5 +1,7 @@
 import { Clock, Facebook, Twitter, Instagram, Linkedin, Mail } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { PATHS } from "../../navigation/paths";
 
 export function Footer() {
   const { t } = useLanguage();
@@ -21,28 +23,36 @@ export function Footer() {
             </p>
             <div className="flex gap-4">
               <a
-                href="#"
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-colors duration-200 hover:bg-blue-500"
                 aria-label="Facebook"
               >
                 <Facebook className="h-5 w-5" />
               </a>
               <a
-                href="#"
+                href="https://twitter.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-colors duration-200 hover:bg-sky-400"
-                aria-label="Twitter"
+                aria-label="Twitter / X"
               >
                 <Twitter className="h-5 w-5" />
               </a>
               <a
-                href="#"
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-colors duration-200 hover:bg-pink-500"
                 aria-label="Instagram"
               >
                 <Instagram className="h-5 w-5" />
               </a>
               <a
-                href="#"
+                href="https://linkedin.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-colors duration-200 hover:bg-indigo-600"
                 aria-label="LinkedIn"
               >
@@ -55,36 +65,36 @@ export function Footer() {
             <h3 className="mb-4 text-lg font-medium text-white">{f.quickLinks}</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.about}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.aboutUs}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.howItWorks}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.howItWorks}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.browse}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.categories}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.community}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.community}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -93,37 +103,45 @@ export function Footer() {
             <h3 className="mb-4 text-lg font-medium text-white">{f.legal}</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.privacy}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.privacy}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.terms}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.terms}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to={PATHS.policyCancellation}
+                  className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
+                >
+                  {f.cancellationPolicy}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to={PATHS.contact}
                   className="text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   {f.contact}
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
-                  className="flex items-center gap-2 text-indigo-100/90 transition-colors duration-200 hover:text-white"
+                <Link
+                  to={PATHS.support}
+                  className="inline-flex items-center gap-2 text-indigo-100/90 transition-colors duration-200 hover:text-white"
                 >
                   <Mail className="h-4 w-4" />
                   {f.support}
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

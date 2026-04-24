@@ -49,6 +49,14 @@ public class ExchangeRequest {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    /** Eğitmen/organizatör: Zoom, Meet vb. (kabulden sonra) */
+    @Column(name = "session_meeting_url", length = 2000)
+    private String sessionMeetingUrl;
+
+    /** İsteğe bağlı: öğrenci (talep sahibi) oturuma katıldığını işaretledi */
+    @Column(name = "requester_attendance_ack_at")
+    private Instant requesterAttendanceAckAt;
+
     @PrePersist
     public void prePersist() {
         if (createdAt == null) {
@@ -137,5 +145,21 @@ public class ExchangeRequest {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getSessionMeetingUrl() {
+        return sessionMeetingUrl;
+    }
+
+    public void setSessionMeetingUrl(String sessionMeetingUrl) {
+        this.sessionMeetingUrl = sessionMeetingUrl;
+    }
+
+    public Instant getRequesterAttendanceAckAt() {
+        return requesterAttendanceAckAt;
+    }
+
+    public void setRequesterAttendanceAckAt(Instant requesterAttendanceAckAt) {
+        this.requesterAttendanceAckAt = requesterAttendanceAckAt;
     }
 }

@@ -13,6 +13,7 @@ export const tr: Translation = {
     markRead: "Okundu işaretle",
     markUnread: "Okunmamış olarak işaretle",
     markAllRead: "Tümünü okundu işaretle",
+    allNotifications: "Tüm bildirimler",
     notifUnreadTag: "Okunmadı",
     notifReadTag: "Okundu",
     profile: "Profil",
@@ -93,6 +94,7 @@ export const tr: Translation = {
     terms: "Kullanım şartları",
     contact: "İletişim",
     support: "Destek",
+    cancellationPolicy: "İptal ve no-show",
     copyright:
       "TimeLink. Tüm hakları saklıdır. Öğrenmeye tutkuyla.",
   },
@@ -459,6 +461,12 @@ export const tr: Translation = {
     bookFallbackMessage: "Yeni bir zaman önermek istiyorum.",
     threadSessionLabel: "Oturum / talep",
     viewMemberProfileTitle: "Profili görüntüle",
+    sessionLinkTitle: "Oturum linki (öğrenci için)",
+    sessionLinkHint: "Zoom, Google Meet veya sınıf linki ekleyin. Kabulden sonra ikiniz de burada görürsünüz.",
+    sessionLinkPlaceholder: "https://...",
+    saveSessionLink: "Linki kaydet",
+    requesterMarkAttendance: "Oturuma katıldım (isteğe bağlı)",
+    requesterMarkedAttendance: "Katılım onaylandı. Kredi aktarımı yine eğitmenin tamamlandı adımıyla olur.",
   },
   publicUserProfile: {
     title: "Profil",
@@ -547,6 +555,10 @@ export const tr: Translation = {
         a: "Yeni üyeler hemen öğrenmeye başlamak için 5 başlangıç kredisi alır. Daha fazla kredi için hemen öğretmeye de başlayabilirsin.",
       },
     ],
+    seeAlsoTitle: "Daha fazla",
+    linkPolicy: "İptal ve no-show",
+    linkInstructor: "Eğitmen rehberi",
+    linkBrowse: "Becerilere göz at",
     ctaTitle: "Öğrenmeye hazır mısın?",
     ctaSubtitle: "Topluluğumuzdaki binlerce öğrenci ve öğretmene katıl",
     ctaButton: "Ücretsiz hesap oluştur",
@@ -724,5 +736,48 @@ export const tr: Translation = {
     linkedinPh: "linkedin.com/in/kullanici",
     twitter: "Twitter",
     twitterPh: "@kullanici",
+  },
+  staticSite: {
+    about: {
+      title: "TimeLink hakkında",
+      body: "TimeLink, zaman kredili beceri takası platformudur. Üyeler para kullanmadan öğreterek kazanır, öğrenerek harcar. Amacımız; eşler arası öğrenmeyi erişilebilir, adil ve topluluk odaklı kılmaktır.\n\nEğitmen ve öğrencileri buluşturan rezervasyon, mesaj ve güven sinyalleri üzerinde çalışıyoruz. Geri bildirimleriniz ürün yol haritamızı şekillendirir.",
+    },
+    community: {
+      title: "Topluluk",
+      body: "Topluluk, sizsiniz. Her yayınlanan beceri, tamamlanan oturum ve değerlendirme ağı güçlendirir.\n\nSaygılı olun, saatinde bulunun, net iletişim kurun. Sorunları Destek üzerinden bildirin. Birlikte takası adil ve güvenli tutarız.",
+    },
+    contact: {
+      title: "İletişim",
+      body: "Tüm mesajları okuyoruz. İş birliği, basın veya hesap desteği için Destek sayfasındaki e-posta adresini kullanın. Ortalama dönüş: birkaç iş günü.\n\nE-posta: support@timelink.local (canlıya alırken güncelleyin).",
+    },
+    support: {
+      title: "Destek ve yardım",
+      body: "Yardıma mı ihtiyacınız var? Önce Nasıl çalışır, İptal ve no-show politikası ve Eğitmen rehberi sayfalarına bakın. Takıldıysanız support@timelink.local adresine hesap e-postanızı ve kısa açıklamayı yazın.\n\nHer anlaşmazlığa arabuluculuk yapamayız; ancak kötüye kullanım ve tekrarlayan no-show modellerini ciddiye alır, topluluğu korumak için hesap kısıtlayabiliriz.",
+    },
+    terms: {
+      title: "Hizmet şartları (özet)",
+      body: "TimeLink’i iyi niyetle kullanmayı kabul edersiniz: doğru profil, diğer üyelere saygı, yürürlükteki yasalara uyum. Zaman kredileri yasal para değildir, nakit karşılığı yoktur. Özellikleri değiştirebilir, kötüye kullanımda hesap askıya alabilir, şartları uygulama içi duyuru ile güncelleyebiliriz.\n\nBu yalnızca özet; canlıya çıkmadan önce tam metin avukatla gözden geçirilmelidir.",
+    },
+    privacy: {
+      title: "Gizlilik (özet)",
+      body: "Rezervasyon, mesaj ve bildirimler için hesap verilerinizi işleriz. Eklediğiniz profil alanları, ayarlarda açıklandığı gibi diğer oturum açmış üyelere gösterilebilir. Verilerinizi satmıyoruz. Hesap silme talep edebilirsiniz; yasal veya güvenlik zorunlulukları için kayıt tutulabilir.\n\nCanlı gizlilik politikası yayımlanmalı; bu metin proje düzeyinde özet niteliğindedir.",
+    },
+    policyCancellation: {
+      title: "İptal, geç iptal ve no-show",
+      body: "Zaman kredileri yalnızca eğitmen oturumu “tamamlandı” diye işaretlediğinde hareket eder; yalnızca rezervasyonda kredi rehin alınmaz (uygulama ipuçlarına bakın).\n\nBeklenti (üyeler arası netlik için):\n\n— Planlanan başlangıçtan 2 saatten fazla önce: genelde serbest iptal, kredi hareketi yok.\n\n— 1–2 saat arası: geç iptal; karşı tarafı hemen bilgilendirin. Güven sinyalleri ve topluluk notları etkilenir.\n\n— 1 saatten az veya no-show: oturum düşer; host Destek’e kayıt bırakabilir. Tekrarlayan no-show hesap incelemesine yol açabilir.\n\nYasal sözleşme değildir. İş parçacığındaki “katılım onayı” iki taraf için referanstır; kredi aktarımı hâlâ eğitmenin tamamlandı adımıyla yapılır.",
+    },
+    instructorGuide: {
+      title: "Eğitmen: onay ve oturum akışı",
+      body: "1) Öğrenci talep + zaman önerir. Siz kabul, red veya red + yeni zaman teklif edebilirsiniz (red sonrası).\n\n2) Kabulden sonra sohbet tam açılır. Takvimde çakışan onaylı oturum engellenir. Zoom/Meet veya sınıf linkini oturum kartında paylaşın.\n\n3) Gerçek ders bittiğinde “Oturumu tamamlandı işaretle” ile kredi aktarılır. Sorun varsa, başlangıçtan önce iptal (yukarıdaki politika).\n\n4) İsteğe bağlı: öğrenci “katıldım” onayı verebilir; güvence amaçlı—tamamlandı adımının yerine geçmez.",
+    },
+  },
+  notificationsPage: {
+    title: "Bildirim merkezi",
+    empty: "Henüz bildiriminiz yok.",
+    emptyUnreadFilter: "Bu listede okunmamış bildirim yok.",
+    unreadOnly: "Yalnızca okunmamış",
+    selectAllVisible: "Görünenleri seç",
+    markSelectedRead: "Seçilileri okundu işaretle",
+    goBack: "Geri",
   },
 };

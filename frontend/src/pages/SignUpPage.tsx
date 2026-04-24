@@ -5,6 +5,8 @@ import { Checkbox } from "../components/ui/checkbox";
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PageType } from "../App";
+import { Link } from "react-router-dom";
+import { PATHS } from "../navigation/paths";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
 import {
@@ -301,9 +303,13 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
               <Checkbox id="terms" className="mt-1" />
               <label htmlFor="terms" className="cursor-pointer text-sm text-muted-foreground">
                 {a.termsPrefix}{" "}
-                <a href="#" className="text-primary hover:underline">{a.terms}</a>
+                <Link to={PATHS.terms} className="text-primary hover:underline">
+                  {a.terms}
+                </Link>
                 {" "}{a.and}{" "}
-                <a href="#" className="text-primary hover:underline">{a.privacy}</a>
+                <Link to={PATHS.privacy} className="text-primary hover:underline">
+                  {a.privacy}
+                </Link>
               </label>
             </div>
 

@@ -11,6 +11,7 @@ export const en = {
     markRead: "Mark as read",
     markUnread: "Mark as unread",
     markAllRead: "Mark all as read",
+    allNotifications: "All notifications",
     notifUnreadTag: "Unread",
     notifReadTag: "Read",
     profile: "Profile",
@@ -91,6 +92,7 @@ export const en = {
     terms: "Terms of Service",
     contact: "Contact",
     support: "Support",
+    cancellationPolicy: "Cancellations & no-show",
     copyright:
       "TimeLink. All rights reserved. Made with passion for learning.",
   },
@@ -456,6 +458,12 @@ export const en = {
     bookFallbackMessage: "I'd like to propose a new slot.",
     threadSessionLabel: "Session / booking",
     viewMemberProfileTitle: "View member profile",
+    sessionLinkTitle: "Session link (for learner)",
+    sessionLinkHint: "Add Zoom, Google Meet, or classroom link. Both of you can open it here after acceptance.",
+    sessionLinkPlaceholder: "https://...",
+    saveSessionLink: "Save link",
+    requesterMarkAttendance: "I attended the session (optional)",
+    requesterMarkedAttendance: "You confirmed attendance. The host still marks complete to transfer credits.",
   },
   publicUserProfile: {
     title: "Profile",
@@ -544,6 +552,10 @@ export const en = {
         a: "New members receive 5 starter time credits to begin learning right away. You can also start teaching to earn more credits immediately.",
       },
     ],
+    seeAlsoTitle: "More resources",
+    linkPolicy: "Cancellations & no-show",
+    linkInstructor: "Instructor guide",
+    linkBrowse: "Browse skills",
     ctaTitle: "Ready to Start Learning?",
     ctaSubtitle:
       "Join thousands of learners and teachers in our community",
@@ -719,6 +731,49 @@ export const en = {
     linkedinPh: "linkedin.com/in/username",
     twitter: "Twitter",
     twitterPh: "@username",
+  },
+  staticSite: {
+    about: {
+      title: "About TimeLink",
+      body: "TimeLink is a time-based skills exchange. Members earn and spend time credits by teaching and learning, without money. Our mission is to make peer learning accessible, fair, and community-driven.\n\nWe are building the tools, trust signals, and booking flows to connect instructors and learners—whether online or in person. Feedback from members shapes what we build next.",
+    },
+    community: {
+      title: "Community",
+      body: "You are the community. Every published skill, every completed session, and every review strengthens the network.\n\nBe respectful, show up on time, and communicate clearly. Report problems through Support so we can help. Together we keep the exchange fair and welcoming.",
+    },
+    contact: {
+      title: "Contact us",
+      body: "We read every message. For partnerships, press, or account help, use the support email on the Support page. Average response: a few business days.\n\nEmail: support@timelink.local (update this in your deployment).",
+    },
+    support: {
+      title: "Support & help",
+      body: "Need help? Check How it works, Cancellation & no-show policy, and the Instructor guide first. If you are stuck, email support@timelink.local with your account email and a short description.\n\nWe cannot mediate every dispute, but we take abuse and no-show patterns seriously and may restrict accounts to protect the community.",
+    },
+    terms: {
+      title: "Terms of Service (summary)",
+      body: "By using TimeLink you agree to use the platform in good faith: accurate profiles, respect for other members, and compliance with any applicable laws. Time credits are not legal tender and have no cash value. We may change features, suspend accounts for abuse, and update these terms with notice in the app.\n\nThis is a summary only—a full legal document should be reviewed with counsel before public launch.",
+    },
+    privacy: {
+      title: "Privacy (summary)",
+      body: "We process account data to run bookings, messages, and notifications. Profile fields you add may be shown to other signed-in members as described in settings. We do not sell your data. You may request account deletion; some records may be retained as required for legal or security reasons.\n\nA complete privacy policy should be published before production; this is a high-level project summary.",
+    },
+    policyCancellation: {
+      title: "Cancellations, late cancel & no-show",
+      body: "The platform moves time credits only when the host marks a session as completed. Until then, your balance is not changed by a mere reservation. Use this policy as a clear expectation between members:\n\n— More than 2 hours before the scheduled start: cancellation is free of credit movement (nothing was debited yet in most cases; see in-app help).\n\n— Between 1 and 2 hours: treat as a late cancel; the other person should be informed promptly. The community may record patterns that affect trust.\n\n— Less than 1 hour or no-show: the learner may forfeit the session; hosts should document the case via Support. Repeated no-shows may result in account review.\n\nThis is a guideline, not a legal contract. The optional learner attendance acknowledgment in a thread helps both sides, but the instructor still completes the session in the product flow. Adjust thresholds in your deployment if needed.",
+    },
+    instructorGuide: {
+      title: "Instructor: approval & session flow",
+      body: "1) A learner sends a request with a proposed time. You can Accept, Decline, or Decline and propose a new time (after a decline).\n\n2) After you Accept, the thread opens fully. Add the meeting link (Zoom, Meet, etc.) in the session card so the learner can join. Conflicting accepted sessions are blocked to protect your calendar.\n\n3) When the real session is done, use “Mark session complete” so time credits are transferred. If something goes wrong, cancel before the scheduled start (rules above).\n\n4) Optional: the learner can mark attendance; it does not replace your completion action but helps trust.",
+    },
+  },
+  notificationsPage: {
+    title: "Notification center",
+    empty: "You have no notifications yet.",
+    emptyUnreadFilter: "No unread notifications in this list.",
+    unreadOnly: "Unread only",
+    selectAllVisible: "Select all visible",
+    markSelectedRead: "Mark read",
+    goBack: "Back",
   },
 };
 

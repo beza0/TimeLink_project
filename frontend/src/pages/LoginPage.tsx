@@ -4,21 +4,33 @@ import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Clock } from "lucide-react";
 import type { PageType } from "../App";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { PATHS } from "../navigation/paths";
 import { useLanguage } from "../contexts/LanguageContext";
 import { loginRequest, resendVerificationEmail } from "../api/auth";
 import { apiErrorDisplayMessage } from "../api/client";
 
 interface LoginPageProps {
   onNavigate?: (page: PageType) => void;
-  returnTo?: PageType;
 }
 
-export function LoginPage({
-  onNavigate,
-  returnTo = "dashboard",
-}: LoginPageProps) {
+export function LoginPage({ onNavigate }: LoginPageProps) {
+  const location = useLocation();
+  const nav = useNavigate();
+  const redirectAfterLogin = useMemo(() => {
+    const st = location.state as
+      | { from?: { pathname: string; search?: string } }
+      | null
+      | undefined;
+    const f = st?.from;
+    if (f?.pathname) {
+      return `${f.pathname}${f.search ?? ""}`;
+    }
+    return PATHS.dashboard;
+  }, [location.state]);
+
   const { login } = useAuth();
   const { t } = useLanguage();
   const a = t.auth.login;
@@ -51,7 +63,7 @@ export function LoginPage({
         },
         res.token,
       );
-      onNavigate?.(returnTo);
+      nav(redirectAfterLogin, { replace: true });
     } catch (err) {
       setError(apiErrorDisplayMessage(err, a.errorFailed));
     } finally {

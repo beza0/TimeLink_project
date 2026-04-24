@@ -4,6 +4,7 @@ import com.timebank.timebank.exchange.dto.CreateExchangeMessageRequest;
 import com.timebank.timebank.exchange.dto.CreateExchangeRequestRequest;
 import com.timebank.timebank.exchange.dto.ExchangeMessageResponse;
 import com.timebank.timebank.exchange.dto.ExchangeRequestResponse;
+import com.timebank.timebank.exchange.dto.UpdateSessionMeetingRequest;
 import com.timebank.timebank.skill.Skill;
 import com.timebank.timebank.skill.SkillRepository;
 import com.timebank.timebank.transaction.TimeTransaction;
@@ -75,6 +76,13 @@ public class ExchangeRequestService {
             throw new IllegalArgumentException("Oturum başlangıcı en az 1 saat sonrası için seçilmelidir");
         }
         validateScheduleAgainstSkillAvailability(skill, scheduled);
+        assertNoAcceptScheduleConflict(
+                requester,
+                skill.getOwner(),
+                scheduled,
+                booked,
+                null
+        );
 
         ExchangeRequest exchangeRequest = new ExchangeRequest();
         exchangeRequest.setSkill(skill);
@@ -120,6 +128,13 @@ public class ExchangeRequestService {
             throw new IllegalArgumentException("Sadece bekleyen talepler kabul edilebilir");
         }
 
+        assertNoAcceptScheduleConflict(
+                exchangeRequest.getRequester(),
+                exchangeRequest.getSkill().getOwner(),
+                exchangeRequest.getScheduledStartAt(),
+                exchangeRequest.getBookedMinutes(),
+                exchangeRequest.getId()
+        );
         exchangeRequest.setStatus(ExchangeRequestStatus.ACCEPTED);
         ExchangeRequest updated = exchangeRequestRepository.save(exchangeRequest);
         notificationService.notifyRequestAccepted(updated);
@@ -223,6 +238,13 @@ public class ExchangeRequestService {
             throw new IllegalArgumentException("Oturum başlangıcı en az 1 saat sonrası için seçilmelidir");
         }
         validateScheduleAgainstSkillAvailability(original.getSkill(), scheduled);
+        assertNoAcceptScheduleConflict(
+                original.getRequester(),
+                original.getSkill().getOwner(),
+                scheduled,
+                original.getBookedMinutes(),
+                null
+        );
 
         ExchangeRequest newReq = new ExchangeRequest();
         newReq.setSkill(original.getSkill());
@@ -288,6 +310,53 @@ public class ExchangeRequestService {
         return mapToResponse(exchangeRequest);
     }
 
+    /**
+     * Kabul edilmiş oturum: eğitmen (beceri sahibi) toplantı linki ekler/günceller.
+     */
+    @Transactional
+    public ExchangeRequestResponse updateSessionMeeting(
+            UUID requestId,
+            UpdateSessionMeetingRequest req,
+            String userEmail
+    ) {
+        ExchangeRequest ex = exchangeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
+        if (!ex.getSkill().getOwner().getEmail().equalsIgnoreCase(userEmail)) {
+            throw new IllegalArgumentException("Oturum linkini yalnızca eğitmen (beceri sahibi) güncelleyebilir");
+        }
+        if (ex.getStatus() != ExchangeRequestStatus.ACCEPTED) {
+            throw new IllegalArgumentException("Sadece onaylanmış oturumlar için link eklenebilir");
+        }
+        String u = req.getMeetingUrl() == null ? null : req.getMeetingUrl().trim();
+        ex.setSessionMeetingUrl(u == null || u.isEmpty() ? null : u);
+        exchangeRequestRepository.save(ex);
+        return mapToResponse(ex);
+    }
+
+    /**
+     * İsteğe bağlı: talep sahibi (öğrenci) oturuma katıldığını işaretler. Tamamlandı/ödeme bu projede
+     * hâlâ sadece eğitmen “tamamlandı” adımına bağlıdır; bu onay referans / güvence amaçlıdır.
+     */
+    @Transactional
+    public ExchangeRequestResponse acknowledgeRequesterAttendance(
+            UUID requestId,
+            String userEmail
+    ) {
+        ExchangeRequest ex = exchangeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
+        if (!ex.getRequester().getEmail().equalsIgnoreCase(userEmail)) {
+            throw new IllegalArgumentException("Bu oturum için sadece talep sahibi onay verebilir");
+        }
+        if (ex.getStatus() != ExchangeRequestStatus.ACCEPTED) {
+            throw new IllegalArgumentException("Sadece onaylanmış oturumlar için katılım onayı verilebilir");
+        }
+        if (ex.getRequesterAttendanceAckAt() == null) {
+            ex.setRequesterAttendanceAckAt(Instant.now());
+        }
+        exchangeRequestRepository.save(ex);
+        return mapToResponse(ex);
+    }
+
     @Transactional(readOnly = true)
     public List<ExchangeMessageResponse> listMessages(UUID exchangeRequestId, String userEmail) {
         ExchangeRequest ex = exchangeRequestRepository.findById(exchangeRequestId)
@@ -328,6 +397,56 @@ public class ExchangeRequestService {
     private static boolean isParticipant(ExchangeRequest ex, String email) {
         return ex.getRequester().getEmail().equalsIgnoreCase(email)
                 || ex.getSkill().getOwner().getEmail().equalsIgnoreCase(email);
+    }
+
+    /**
+     * Aynı kullanıcı için aynı anda (öğrenci veya eğitmen olarak) çakışan onaylı oturum yok.
+     */
+    private void assertNoAcceptScheduleConflict(
+            User requester,
+            User owner,
+            Instant scheduled,
+            int bookedMinutes,
+            UUID excludeExchangeId
+    ) {
+        if (scheduled == null) {
+            return;
+        }
+        if (bookedMinutes <= 0) {
+            return;
+        }
+        assertUserScheduleNoOverlap(requester.getId(), scheduled, bookedMinutes, excludeExchangeId);
+        assertUserScheduleNoOverlap(owner.getId(), scheduled, bookedMinutes, excludeExchangeId);
+    }
+
+    private void assertUserScheduleNoOverlap(
+            UUID userId,
+            Instant newStart,
+            int newMinutes,
+            UUID excludeExchangeId
+    ) {
+        Instant newEnd = newStart.plus(newMinutes, ChronoUnit.MINUTES);
+        List<ExchangeRequest> list = exchangeRequestRepository.findAcceptedByUserInvolvement(
+                ExchangeRequestStatus.ACCEPTED, userId);
+        for (ExchangeRequest e : list) {
+            if (excludeExchangeId != null && excludeExchangeId.equals(e.getId())) {
+                continue;
+            }
+            Instant oStart = e.getScheduledStartAt();
+            if (oStart == null) {
+                continue;
+            }
+            Instant oEnd = oStart.plus(e.getBookedMinutes(), ChronoUnit.MINUTES);
+            if (intervalsOverlap(newStart, newEnd, oStart, oEnd)) {
+                throw new IllegalArgumentException(
+                        "Bu zaman aralığında zaten onaylanmış başka bir oturumunuz var; çakışan rezervasyon yapılamaz.");
+            }
+        }
+    }
+
+    private static boolean intervalsOverlap(Instant a0, Instant a1, Instant b0, Instant b1) {
+        // Yarım açık: [a0, a1) yorumu — aynı anda biten/başlayan hafif kesişimlere izin: bitiş == başlangıç çakışmaz
+        return a0.isBefore(b1) && b0.isBefore(a1);
     }
 
     private static void validateScheduleAgainstSkillAvailability(Skill skill, Instant scheduledStartAt) {
@@ -376,7 +495,9 @@ public class ExchangeRequestService {
                 exchangeRequest.getScheduledStartAt(),
                 exchangeRequest.isPendingFromOwner(),
                 exchangeRequest.getStatus(),
-                exchangeRequest.getCreatedAt()
+                exchangeRequest.getCreatedAt(),
+                exchangeRequest.getSessionMeetingUrl(),
+                exchangeRequest.getRequesterAttendanceAckAt()
         );
     }
 }

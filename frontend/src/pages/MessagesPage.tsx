@@ -27,6 +27,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -50,6 +51,8 @@ import {
   postExchangeMessage,
   rejectExchangeRequest,
   createExchangeRequest,
+  updateExchangeSessionMeeting,
+  acknowledgeRequesterAttendance,
   type ExchangeMessageDto,
   type ExchangeRequestDto,
 } from "../api/exchange";
@@ -87,6 +90,13 @@ function dateToYmd(d: Date): string {
 function ymdToLocalDate(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
   return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
+function meetingHref(url: string): string {
+  const t = url.trim();
+  if (!t) return t;
+  if (t.startsWith("http://") || t.startsWith("https://")) return t;
+  return `https://${t}`;
 }
 
 function formatScheduledAt(
@@ -260,7 +270,9 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   const { t, locale } = useLanguage();
   const m = t.messagesPage;
   const { user, token } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<ConversationRow[]>([]);
+  const [meetingDraft, setMeetingDraft] = useState("");
   const [loadingList, setLoadingList] = useState(false);
   const [selectedOtherUserId, setSelectedOtherUserId] = useState<string | null>(
     null,
@@ -344,6 +356,14 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   }, []);
 
   useEffect(() => {
+    const o = searchParams.get("open");
+    if (o) {
+      setOpenFromNavExchangeId(o);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (!openFromNavExchangeId || rows.length === 0) return;
     for (const r of rows) {
       if (r.exchanges.some((e) => e.id === openFromNavExchangeId)) {
@@ -372,6 +392,14 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
       uiStatus: toUiStatus(ex, user?.id),
     };
   }, [rows, selectedOtherUserId, activeExchangeId, user?.id]);
+
+  useEffect(() => {
+    if (!selected) {
+      setMeetingDraft("");
+      return;
+    }
+    setMeetingDraft(selected.ex.sessionMeetingUrl?.trim() ?? "");
+  }, [selected, selected?.ex.id, selected?.ex.sessionMeetingUrl]);
 
   useEffect(() => {
     if (!selectedOtherUserId) return;
@@ -540,6 +568,34 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
       await completeExchangeRequest(token, exId);
       const next = await loadList();
       focusExchangeAfterList(next, exId);
+    } catch (e) {
+      setSendError(apiErrorDisplayMessage(e, m.actionError));
+    }
+  };
+
+  const handleSaveMeeting = async () => {
+    if (!token || !selected) return;
+    setSendError(null);
+    try {
+      await updateExchangeSessionMeeting(
+        token,
+        selected.ex.id,
+        meetingDraft,
+      );
+      const next = await loadList();
+      focusExchangeAfterList(next, selected.ex.id);
+    } catch (e) {
+      setSendError(apiErrorDisplayMessage(e, m.actionError));
+    }
+  };
+
+  const handleAckAttendance = async () => {
+    if (!token || !selected) return;
+    setSendError(null);
+    try {
+      await acknowledgeRequesterAttendance(token, selected.ex.id);
+      const next = await loadList();
+      focusExchangeAfterList(next, selected.ex.id);
     } catch (e) {
       setSendError(apiErrorDisplayMessage(e, m.actionError));
     }
@@ -937,6 +993,64 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                             <X className="mr-1 h-4 w-4" />
                             {m.cancelSession}
                           </Button>
+                        ) : null}
+                      </div>
+                      <div className="mt-4 space-y-3 border-t border-emerald-200/80 pt-4 text-sm dark:border-emerald-800/80">
+                        {sameUserId(selected.ex.ownerId, user?.id) ? (
+                          <div>
+                            <Label
+                              className="text-foreground/90"
+                              htmlFor="session-meet-url"
+                            >
+                              {m.sessionLinkTitle}
+                            </Label>
+                            <p className="mb-2 text-xs text-muted-foreground">
+                              {m.sessionLinkHint}
+                            </p>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <Input
+                                id="session-meet-url"
+                                value={meetingDraft}
+                                onChange={(e) => setMeetingDraft(e.target.value)}
+                                placeholder={m.sessionLinkPlaceholder}
+                                className="sm:flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => void handleSaveMeeting()}
+                              >
+                                {m.saveSessionLink}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                        {selected.ex.sessionMeetingUrl?.trim() ? (
+                          <a
+                            href={meetingHref(selected.ex.sessionMeetingUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block font-medium text-primary underline-offset-2 hover:underline"
+                          >
+                            {meetingHref(selected.ex.sessionMeetingUrl!)}
+                          </a>
+                        ) : null}
+                        {sameUserId(selected.ex.requesterId, user?.id) ? (
+                          selected.ex.requesterAttendanceAckAt ? (
+                            <p className="text-xs text-muted-foreground">
+                              {m.requesterMarkedAttendance}
+                            </p>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void handleAckAttendance()}
+                            >
+                              {m.requesterMarkAttendance}
+                            </Button>
+                          )
                         ) : null}
                       </div>
                     </div>

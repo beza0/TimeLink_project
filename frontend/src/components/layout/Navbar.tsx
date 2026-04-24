@@ -1,7 +1,9 @@
 import { Button } from "../ui/button";
 import { Clock, Menu, Bell, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { PageType } from "../../App";
+import { PATHS } from "../../navigation/paths";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import {
@@ -26,6 +28,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifUnreadOnly, setNotifUnreadOnly] = useState(false);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
 
   const loadUnread = async () => {
@@ -131,6 +134,10 @@ export function Navbar({ onNavigate }: NavbarProps) {
   const navLinkClass =
     "cursor-pointer rounded-md px-2 py-1.5 shrink-0 whitespace-nowrap text-white/90 transition-all duration-150 hover:bg-white/30 hover:text-white hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]";
 
+  const notificationsForPopover = notifUnreadOnly
+    ? notifications.filter((n) => isNotificationUnread(n))
+    : notifications;
+
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/20 bg-gradient-to-r from-blue-500 to-purple-600 backdrop-blur-md">
@@ -217,11 +224,28 @@ export function Navbar({ onNavigate }: NavbarProps) {
                     collisionPadding={20}
                     className="nav-notification-popover overflow-hidden rounded-2xl border-0 bg-white p-0 shadow-2xl dark:border dark:border-border dark:bg-card"
                   >
-                    <div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-4 dark:border-border">
+                    <div className="flex flex-col gap-2 border-b border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-border">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-foreground">
                         {t.nav.notifications}
                       </h2>
-                      <button
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600 dark:text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={notifUnreadOnly}
+                            onChange={() => setNotifUnreadOnly((u) => !u)}
+                            className="rounded border-border"
+                          />
+                          {t.notificationsPage.unreadOnly}
+                        </label>
+                        <Link
+                          to={notifUnreadOnly ? `${PATHS.notifications}?unread=1` : PATHS.notifications}
+                          className="text-sm font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+                          onClick={() => setNotifOpen(false)}
+                        >
+                          {t.nav.allNotifications}
+                        </Link>
+                        <button
                         type="button"
                         className="text-sm font-medium text-purple-600 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-purple-400 dark:hover:text-purple-300"
                         disabled={
@@ -236,14 +260,19 @@ export function Navbar({ onNavigate }: NavbarProps) {
                       >
                         {t.nav.markAllRead}
                       </button>
+                      </div>
                     </div>
                     <div className="nav-notification-scroll max-h-[min(500px,calc(100dvh-8rem))]">
                       {notifications.length === 0 ? (
                         <p className="p-4 text-sm text-gray-500 dark:text-muted-foreground">
                           {t.nav.noNotifications}
                         </p>
+                      ) : notificationsForPopover.length === 0 ? (
+                        <p className="p-4 text-sm text-gray-500 dark:text-muted-foreground">
+                          {t.notificationsPage.emptyUnreadFilter}
+                        </p>
                       ) : (
-                        notifications.map((n) => {
+                        notificationsForPopover.map((n) => {
                           const unread = isNotificationUnread(n);
                           return (
                             <div

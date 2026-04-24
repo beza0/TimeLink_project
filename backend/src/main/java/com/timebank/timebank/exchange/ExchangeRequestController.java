@@ -4,6 +4,7 @@ import com.timebank.timebank.exchange.dto.CreateExchangeMessageRequest;
 import com.timebank.timebank.exchange.dto.CreateExchangeRequestRequest;
 import com.timebank.timebank.exchange.dto.ExchangeMessageResponse;
 import com.timebank.timebank.exchange.dto.ExchangeRequestResponse;
+import com.timebank.timebank.exchange.dto.UpdateSessionMeetingRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -116,6 +117,31 @@ public class ExchangeRequestController {
     ) {
         return ResponseEntity.ok(
                 exchangeRequestService.cancelRequest(requestId, authentication.getName())
+        );
+    }
+
+    @PutMapping("/{requestId}/meeting")
+    public ResponseEntity<ExchangeRequestResponse> updateSessionMeeting(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody UpdateSessionMeetingRequest req,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                exchangeRequestService.updateSessionMeeting(
+                        requestId, req, authentication.getName()
+                )
+        );
+    }
+
+    @PostMapping("/{requestId}/ack-attendance")
+    public ResponseEntity<ExchangeRequestResponse> acknowledgeRequesterAttendance(
+            @PathVariable UUID requestId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                exchangeRequestService.acknowledgeRequesterAttendance(
+                        requestId, authentication.getName()
+                )
         );
     }
 }
