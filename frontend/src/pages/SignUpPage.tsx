@@ -51,7 +51,7 @@ export function SignUpPage({ onNavigate }: SignUpPageProps) {
       setResendCooldown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [awaitingVerification, resendCooldown > 0]);
+  }, [awaitingVerification, resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

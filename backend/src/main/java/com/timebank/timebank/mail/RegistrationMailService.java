@@ -38,7 +38,25 @@ public class RegistrationMailService {
             return explicit;
         }
         String host = environment.getProperty("spring.mail.host");
-        return host != null && !host.isBlank();
+        if (host == null || host.isBlank()) {
+            return false;
+        }
+
+        boolean smtpAuth = environment.getProperty(
+                "spring.mail.properties.mail.smtp.auth",
+                Boolean.class,
+                true
+        );
+        if (!smtpAuth) {
+            return true;
+        }
+
+        String username = environment.getProperty("spring.mail.username");
+        String password = environment.getProperty("spring.mail.password");
+        return username != null
+                && !username.isBlank()
+                && password != null
+                && !password.isBlank();
     }
 
     /**

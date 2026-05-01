@@ -406,6 +406,7 @@ export const en = {
     pendingRequest: "Pending Request",
     waitingApproval: "Waiting for approval",
     wantsConnect: "{{name}} wants to connect with you.",
+    ownerProposedNewSlot: "{{name}} proposed a new session time for you to review.",
     requestSkill: "Skill",
     requestDateTime: "Requested date & time",
     requestMessage: "Message",
@@ -426,6 +427,8 @@ export const en = {
     emptyThreadTitle: "Select a conversation",
     emptyThreadBody: "When you have message threads, they will appear here.",
     actionError: "Something went wrong. Try again.",
+    bookingNeedUserId:
+      "We couldn’t verify your account. Please sign in again and retry.",
     acceptedBadge: "Confirmed",
     rejectedBadge: "Declined",
     cancelledBadge: "Cancelled",

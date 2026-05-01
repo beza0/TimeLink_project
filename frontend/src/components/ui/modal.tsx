@@ -1,5 +1,7 @@
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
+import { cn } from "./utils";
 
 interface ModalProps {
   open: boolean;
@@ -7,6 +9,10 @@ interface ModalProps {
   children: React.ReactNode;
 }
 
+/**
+ * Tam ekran diyalog. `document.body` üzerine portallanır (stacking / overflow sorunlarını azaltır).
+ * z-index: 1200–1201 — sayfa içeriği üstünde; takvim popover’ı (PopoverContent ~1300) modal panelinin üstünde kalır.
+ */
 export function Modal({ open, onOpenChange, children }: ModalProps) {
   useEffect(() => {
     if (open) {
@@ -21,28 +27,47 @@ export function Modal({ open, onOpenChange, children }: ModalProps) {
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1200] flex items-center justify-center p-4"
+      role="presentation"
+    >
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm dark:bg-black/70"
+        className="fixed inset-0 z-[1200] bg-black/50 backdrop-blur-sm dark:bg-black/70"
         onClick={() => onOpenChange(false)}
+        aria-hidden
       />
-
-      <div className="relative z-[500] w-full max-w-lg mx-4">
-        <div className="max-h-[90vh] overflow-y-auto rounded-2xl bg-card text-card-foreground shadow-2xl">
+      <div
+        className="relative z-[1201] flex w-full max-w-lg justify-center"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-card text-card-foreground shadow-2xl">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-export function ModalContent({ children }: { children: React.ReactNode }) {
-  return <div className="p-6">{children}</div>;
+export function ModalContent({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("p-6", className)}>{children}</div>;
 }
 
-export function ModalHeader({ children }: { children: React.ReactNode }) {
-  return <div className="mb-4">{children}</div>;
+export function ModalHeader({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("mb-4", className)}>{children}</div>;
 }
 
 export function ModalTitle({ children }: { children: React.ReactNode }) {

@@ -123,6 +123,26 @@ export function createCounterOffer(
   );
 }
 
+/** Öğrenci: eğitmenin reddedilmiş karşı teklifinden sonra yeni tarih önerir. */
+export function createRequesterCounterOffer(
+  token: string,
+  requestId: string,
+  body: {
+    message: string;
+    bookedMinutes: number;
+    scheduledStartAt: string;
+  },
+) {
+  return apiFetch<ExchangeRequestDto>(
+    `/api/exchange-requests/${requestId}/requester-counter-offer`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    },
+  );
+}
+
 export function updateExchangeSessionMeeting(
   token: string,
   exchangeId: string,

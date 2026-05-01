@@ -408,6 +408,7 @@ export const tr: Translation = {
     pendingRequest: "Bekleyen istek",
     waitingApproval: "Onay bekleniyor",
     wantsConnect: "{{name}} sizinle bağlantı kurmak istiyor.",
+    ownerProposedNewSlot: "{{name}} sizin için yeni bir oturum zamanı önerdi.",
     requestSkill: "Beceri",
     requestDateTime: "İstenen tarih ve saat",
     requestMessage: "Mesaj",
@@ -429,6 +430,8 @@ export const tr: Translation = {
     emptyThreadTitle: "Bir konuşma seçin",
     emptyThreadBody: "Mesajlarınız burada görünecek.",
     actionError: "İşlem başarısız. Tekrar deneyin.",
+    bookingNeedUserId:
+      "Hesabınız doğrulanamadı. Lütfen tekrar giriş yapıp yeniden deneyin.",
     acceptedBadge: "Onaylandı",
     rejectedBadge: "Reddedildi",
     cancelledBadge: "İptal edildi",

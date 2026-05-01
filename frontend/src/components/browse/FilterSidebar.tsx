@@ -27,9 +27,14 @@ export interface Filters {
 interface FilterSidebarProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
+  showClearButton?: boolean;
 }
 
-export function FilterSidebar({ filters, onFiltersChange }: FilterSidebarProps) {
+export function FilterSidebar({
+  filters,
+  onFiltersChange,
+  showClearButton = true,
+}: FilterSidebarProps) {
   const { t } = useLanguage();
   const fi = t.filter;
   const catLabels = t.browse.categoryLabels;
@@ -65,9 +70,11 @@ export function FilterSidebar({ filters, onFiltersChange }: FilterSidebarProps) 
     <Card className="w-full rounded-2xl border border-border/80 p-6 shadow-lg">
       <div className="mb-6 flex items-center justify-between">
         <h3 className="text-lg text-foreground">{fi.title}</h3>
-        <Button variant="ghost" size="sm" onClick={clearFilters}>
-          {fi.clearAll}
-        </Button>
+        {showClearButton ? (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            {fi.clearAll}
+          </Button>
+        ) : null}
       </div>
       
       <div className="mb-6">

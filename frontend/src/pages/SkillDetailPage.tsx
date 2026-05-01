@@ -217,7 +217,9 @@ export function SkillDetailPage({
   }, [skillId]);
 
   useEffect(() => {
-    if (!token || !skill || !user?.id || skill.ownerId !== user.id) {
+    const ownerId = skill?.ownerId;
+    const currentSkillId = skill?.id;
+    if (!token || !ownerId || !currentSkillId || !user?.id || ownerId !== user.id) {
       setReceivedTeachingForSkill([]);
       return;
     }
@@ -228,7 +230,7 @@ export function SkillDetailPage({
         setReceivedTeachingForSkill(
           list.filter(
             (req) =>
-              req.skillId === skill.id &&
+              req.skillId === currentSkillId &&
               (req.status === "ACCEPTED" || req.status === "COMPLETED"),
           ),
         );
@@ -874,6 +876,15 @@ export function SkillDetailPage({
                 </div>
               ) : null}
               <p className="text-sm text-muted-foreground">{s.bookScheduleHint}</p>
+              {!bookDatePopoverOpen && bookErr ? (
+                <div
+                  className="flex items-start gap-2 rounded-md border-2 border-red-600 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-900 dark:border-red-500 dark:bg-red-950/60 dark:text-red-100"
+                  role="alert"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{bookErr}</span>
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="min-w-0">
                   <Label htmlFor="book-date-trigger">{s.bookDateLabel}</Label>
@@ -905,6 +916,15 @@ export function SkillDetailPage({
                         collisionPadding={16}
                         className="w-80 min-w-[18rem] max-h-[min(26rem,calc(100dvh-6rem))] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain border-border p-2 shadow-lg"
                       >
+                        {bookErr ? (
+                          <div
+                            className="mb-2 flex items-start gap-2 rounded-md border border-red-600 bg-red-50 px-2 py-2 text-xs font-medium leading-snug text-red-900 dark:border-red-500 dark:bg-red-950/70 dark:text-red-100"
+                            role="alert"
+                          >
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>{bookErr}</span>
+                          </div>
+                        ) : null}
                         <Calendar
                           mode="single"
                           locale={locale === "tr" ? trLocale : enUS}
@@ -1005,15 +1025,6 @@ export function SkillDetailPage({
                 />
               </div>
             </div>
-            {bookErr ? (
-              <div
-                className="mt-3 flex items-start gap-2 rounded-lg border border-red-600 bg-red-200 px-3 py-2 text-sm text-red-900 shadow-lg shadow-red-500/50 dark:border-red-500 dark:bg-red-950/45 dark:text-red-200"
-                role="alert"
-              >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{bookErr}</span>
-              </div>
-            ) : null}
             <ModalFooter>
               <Button
                 type="button"

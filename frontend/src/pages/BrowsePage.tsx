@@ -4,6 +4,7 @@ import { FilterSidebar } from "../components/browse/FilterSidebar";
 import type { Filters } from "../components/browse/FilterSidebar";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
 import { Label } from "../components/ui/label";
 import {
   Select,
@@ -12,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import type { PageType } from "../App";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -46,12 +47,12 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
     locations: [],
     minRating: 0,
   });
+  const [mobileDraftFilters, setMobileDraftFilters] = useState<Filters>(filters);
   const [catalog, setCatalog] = useState<BrowseSkillCardModel[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    setCatalogLoading(true);
     fetchPublicSkills()
       .then((rows) => {
         if (!cancelled) {
@@ -139,15 +140,6 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
     return sortedSkills.slice(start, start + PAGE_SIZE);
   }, [sortedSkills, activePage]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filters, sortBy]);
-
-  useEffect(() => {
-    if (totalPages === 0) return;
-    if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [totalPages, currentPage]);
-
   const skipScrollOnMount = useRef(true);
 
   useLayoutEffect(() => {
@@ -160,6 +152,30 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
 
   const handlePageChange = (nextPage: number) => {
     setCurrentPage(nextPage);
+  };
+
+  const openMobileFilters = () => {
+    setMobileDraftFilters(filters);
+    setShowMobileFilters(true);
+  };
+
+  const resetMobileFilters = () => {
+    setMobileDraftFilters({
+      categories: [],
+      locations: [],
+      minRating: 0,
+    });
+  };
+
+  const applyMobileFilters = () => {
+    setFilters(mobileDraftFilters);
+    setCurrentPage(1);
+    setShowMobileFilters(false);
+  };
+
+  const clearDesktopFilters = (nextFilters: Filters) => {
+    setFilters(nextFilters);
+    setCurrentPage(1);
   };
 
   return (
@@ -183,12 +199,15 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
                 placeholder={b.searchPlaceholder}
                 className="h-12 rounded-xl border-0 bg-input-background pl-12 text-foreground shadow-lg"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
               />
             </div>
             <Button 
               className="h-12 bg-input-background px-4 text-primary hover:bg-accent md:hidden"
-              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              onClick={openMobileFilters}
             >
               <SlidersHorizontal className="w-5 h-5" />
             </Button>
@@ -201,15 +220,8 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Filters - Desktop */}
           <div className="hidden lg:block lg:sticky lg:top-24 lg:self-start">
-            <FilterSidebar filters={filters} onFiltersChange={setFilters} />
+            <FilterSidebar filters={filters} onFiltersChange={clearDesktopFilters} />
           </div>
-          
-          {/* Filters - Mobile */}
-          {showMobileFilters && (
-            <div className="lg:hidden col-span-1 mb-6">
-              <FilterSidebar filters={filters} onFiltersChange={setFilters} />
-            </div>
-          )}
           
           {/* Skills Grid */}
           <div className="lg:col-span-3">
@@ -239,7 +251,10 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
                 </Label>
                 <Select
                   value={sortBy}
-                  onValueChange={(v) => setSortBy(v as SortOption)}
+                  onValueChange={(v) => {
+                    setSortBy(v as SortOption);
+                    setCurrentPage(1);
+                  }}
                 >
                   <SelectTrigger
                     id="browse-sort"
@@ -257,8 +272,17 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
             </div>
             
             {catalogLoading ? (
-              <div className="py-24 text-center text-muted-foreground">
-                {t.common.loading}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                  <Card key={i} className="rounded-2xl border border-border/70 p-4 shadow-sm">
+                    <div className="h-44 w-full animate-pulse rounded-xl bg-muted" />
+                    <div className="mt-4 space-y-3">
+                      <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                      <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+                      <div className="h-3 w-5/6 animate-pulse rounded bg-muted" />
+                    </div>
+                  </Card>
+                ))}
               </div>
             ) : sortedSkills.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -289,7 +313,22 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
                   {catalog.length === 0 ? b.emptyCatalog : b.noSkillsTitle}
                 </p>
                 {catalog.length > 0 ? (
-                  <p className="text-muted-foreground">{b.noSkillsHint}</p>
+                  <>
+                    <p className="text-muted-foreground">{b.noSkillsHint}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => {
+                        setFilters({ categories: [], locations: [], minRating: 0 });
+                        setSearchQuery("");
+                        setSortBy("relevant");
+                        setCurrentPage(1);
+                      }}
+                    >
+                      {t.filter.clearAll}
+                    </Button>
+                  </>
                 ) : null}
               </div>
             )}
@@ -336,6 +375,47 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
         </div>
       </div>
       
+      {showMobileFilters ? (
+        <div className="fixed inset-0 z-[120] lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowMobileFilters(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl bg-card p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg text-foreground">{t.filter.title}</h2>
+              <button
+                type="button"
+                className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+                onClick={() => setShowMobileFilters(false)}
+                aria-label="Close filters"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="max-h-[calc(85vh-8.5rem)] overflow-y-auto pb-2">
+              <FilterSidebar
+                filters={mobileDraftFilters}
+                onFiltersChange={setMobileDraftFilters}
+                showClearButton={false}
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3">
+              <Button type="button" variant="outline" onClick={resetMobileFilters}>
+                {t.filter.clearAll}
+              </Button>
+              <Button
+                type="button"
+                className="bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                onClick={applyMobileFilters}
+              >
+                Uygula
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </PageLayout>
   );
 }

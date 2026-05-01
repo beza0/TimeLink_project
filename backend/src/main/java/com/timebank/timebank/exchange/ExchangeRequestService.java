@@ -125,16 +125,24 @@ public class ExchangeRequestService {
     }
 
     @Transactional
-    public ExchangeRequestResponse acceptRequest(UUID requestId, String ownerEmail) {
+    public ExchangeRequestResponse acceptRequest(UUID requestId, String userEmail) {
         ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
 
-        if (!exchangeRequest.getSkill().getOwner().getEmail().equalsIgnoreCase(ownerEmail)) {
-            throw new IllegalArgumentException("Bu talebi kabul etme yetkiniz yok");
-        }
-
         if (exchangeRequest.getStatus() != ExchangeRequestStatus.PENDING) {
             throw new IllegalArgumentException("Sadece bekleyen talepler kabul edilebilir");
+        }
+
+        boolean isOwner = exchangeRequest.getSkill().getOwner().getEmail().equalsIgnoreCase(userEmail);
+        boolean isRequester = exchangeRequest.getRequester().getEmail().equalsIgnoreCase(userEmail);
+        if (exchangeRequest.isPendingFromOwner()) {
+            if (!isRequester) {
+                throw new IllegalArgumentException("Bu talebi kabul etme yetkiniz yok");
+            }
+        } else {
+            if (!isOwner) {
+                throw new IllegalArgumentException("Bu talebi kabul etme yetkiniz yok");
+            }
         }
 
         assertNoAcceptScheduleConflict(
@@ -152,16 +160,26 @@ public class ExchangeRequestService {
     }
 
     @Transactional
-    public ExchangeRequestResponse rejectRequest(UUID requestId, String ownerEmail) {
+    public ExchangeRequestResponse rejectRequest(UUID requestId, String userEmail) {
         ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
 
-        if (!exchangeRequest.getSkill().getOwner().getEmail().equalsIgnoreCase(ownerEmail)) {
-            throw new IllegalArgumentException("Bu talebi reddetme yetkiniz yok");
-        }
-
         if (exchangeRequest.getStatus() != ExchangeRequestStatus.PENDING) {
             throw new IllegalArgumentException("Sadece bekleyen talepler reddedilebilir");
+        }
+
+        boolean isOwner = exchangeRequest.getSkill().getOwner().getEmail().equalsIgnoreCase(userEmail);
+        boolean isRequester = exchangeRequest.getRequester().getEmail().equalsIgnoreCase(userEmail);
+        if (exchangeRequest.isPendingFromOwner()) {
+            // Eğitmenin yeni tarih teklifi: yanıt verecek taraf öğrenci (talep sahibi).
+            if (!isRequester) {
+                throw new IllegalArgumentException("Bu talebi reddetme yetkiniz yok");
+            }
+        } else {
+            // İlk talep: yanıt verecek taraf eğitmen (beceri sahibi).
+            if (!isOwner) {
+                throw new IllegalArgumentException("Bu talebi reddetme yetkiniz yok");
+            }
         }
 
         exchangeRequest.setStatus(ExchangeRequestStatus.REJECTED);
@@ -246,7 +264,8 @@ public class ExchangeRequestService {
         if (scheduled.isBefore(minStart)) {
             throw new IllegalArgumentException("Oturum başlangıcı en az 1 saat sonrası için seçilmelidir");
         }
-        validateScheduleAgainstSkillAvailability(original.getSkill(), scheduled);
+        // Skill meta'daki müsait gün/saat yalnızca öğrencinin ilk talebi ve öğrenci karşı teklifi için geçerlidir;
+        // eğitmen reddettikten sonra yeni tarih önerirken kendi takvimini serbestçe seçebilir (çakışma kontrolü aşağıda).
         assertNoAcceptScheduleConflict(
                 original.getRequester(),
                 original.getSkill().getOwner(),
@@ -269,6 +288,77 @@ public class ExchangeRequestService {
 
         ExchangeRequest saved = exchangeRequestRepository.save(newReq);
         notificationService.notifyCounterOffer(saved);
+        return mapToResponse(saved);
+    }
+
+    /**
+     * Öğrenci, eğitmenin reddedilmiş karşı teklifinden sonra yeni tarih/saat önerir (bekleyen satır: pendingFromOwner=false).
+     */
+    @Transactional
+    public ExchangeRequestResponse requesterCounterOfferRequest(
+            UUID requestId,
+            CreateExchangeRequestRequest req,
+            String requesterEmail
+    ) {
+        ExchangeRequest original = exchangeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new IllegalArgumentException("Talep bulunamadı"));
+
+        if (!original.getRequester().getEmail().equalsIgnoreCase(requesterEmail)) {
+            throw new IllegalArgumentException("Bu talep için yeni tarih önerme yetkiniz yok");
+        }
+        if (original.getStatus() != ExchangeRequestStatus.REJECTED) {
+            throw new IllegalArgumentException("Yeni tarih önerisi için önce talep reddedilmiş olmalı");
+        }
+        if (!original.isPendingFromOwner()) {
+            throw new IllegalArgumentException(
+                    "Bu yanıt yalnızca eğitmenin son teklifini reddettikten sonra kullanılabilir");
+        }
+
+        User requester = original.getRequester();
+        Skill skill = original.getSkill();
+
+        int booked = req.getBookedMinutes();
+        if (booked < 30) {
+            throw new IllegalArgumentException("Rezervasyon süresi en az 30 dakika olmalıdır");
+        }
+        if (booked != original.getBookedMinutes()) {
+            throw new IllegalArgumentException("Yeni teklif, mevcut rezervasyon süresiyle aynı olmalı");
+        }
+        if (requester.getTimeCreditMinutes() < booked) {
+            throw new IllegalArgumentException("Saat bakiyeniz bu süre için yetersiz");
+        }
+
+        Instant scheduled = req.getScheduledStartAt();
+        Instant minStart = Instant.now().plus(1, ChronoUnit.HOURS);
+        if (scheduled.isBefore(minStart)) {
+            throw new IllegalArgumentException("Oturum başlangıcı en az 1 saat sonrası için seçilmelidir");
+        }
+        validateScheduleAgainstSkillAvailability(skill, scheduled);
+        assertNoAcceptScheduleConflict(
+                requester,
+                skill.getOwner(),
+                scheduled,
+                booked,
+                null
+        );
+
+        ExchangeRequest newReq = new ExchangeRequest();
+        newReq.setSkill(skill);
+        newReq.setRequester(requester);
+        newReq.setMessage(req.getMessage().trim());
+        newReq.setBookedMinutes(booked);
+        newReq.setScheduledStartAt(scheduled);
+        newReq.setReminderSent(false);
+        newReq.setStartedPromptSent(false);
+        newReq.setPendingFromOwner(false);
+        newReq.setRequesterCreditHeld(true);
+        newReq.setStatus(ExchangeRequestStatus.PENDING);
+
+        requester.setTimeCreditMinutes(requester.getTimeCreditMinutes() - booked);
+
+        ExchangeRequest saved = exchangeRequestRepository.save(newReq);
+        userRepository.save(requester);
+        notificationService.notifyNewBookingRequest(saved);
         return mapToResponse(saved);
     }
 

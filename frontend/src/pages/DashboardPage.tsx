@@ -63,25 +63,37 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [upcoming, setUpcoming] = useState<ExchangeRequestDto[]>([]);
 
   useEffect(() => {
-    if (!token) {
-      setDash(null);
-      return;
-    }
-    fetchMyDashboard(token)
-      .then(setDash)
-      .catch(() => setDash(null));
+    let cancelled = false;
+    const loadDashboard = async () => {
+      if (!token) {
+        if (!cancelled) setDash(null);
+        return;
+      }
+      try {
+        const data = await fetchMyDashboard(token);
+        if (!cancelled) setDash(data);
+      } catch {
+        if (!cancelled) setDash(null);
+      }
+    };
+    void loadDashboard();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   useEffect(() => {
-    if (!token || !myId) {
-      setUpcoming([]);
-      return;
-    }
-    Promise.all([
-      fetchSentExchangeRequests(token),
-      fetchReceivedExchangeRequests(token),
-    ])
-      .then(([sent, received]) => {
+    let cancelled = false;
+    const loadUpcoming = async () => {
+      if (!token || !myId) {
+        if (!cancelled) setUpcoming([]);
+        return;
+      }
+      try {
+        const [sent, received] = await Promise.all([
+          fetchSentExchangeRequests(token),
+          fetchReceivedExchangeRequests(token),
+        ]);
         const map = new Map<string, ExchangeRequestDto>();
         for (const e of sent) map.set(e.id, e);
         for (const e of received) map.set(e.id, e);
@@ -92,9 +104,15 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
-        setUpcoming(accepted);
-      })
-      .catch(() => setUpcoming([]));
+        if (!cancelled) setUpcoming(accepted);
+      } catch {
+        if (!cancelled) setUpcoming([]);
+      }
+    };
+    void loadUpcoming();
+    return () => {
+      cancelled = true;
+    };
   }, [token, myId]);
 
   const statValues: [string, string, string, string] = dash

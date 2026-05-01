@@ -1,6 +1,6 @@
 import { Button } from "../ui/button";
 import { Clock, Menu, Bell, MessageCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PageType } from "../../App";
 import { PATHS } from "../../navigation/paths";
@@ -31,7 +31,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
   const [notifUnreadOnly, setNotifUnreadOnly] = useState(false);
   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
 
-  const loadUnread = async () => {
+  const loadUnread = useCallback(async () => {
     if (!isAuthenticated || !token) {
       setNotifCount(0);
       return;
@@ -42,17 +42,19 @@ export function Navbar({ onNavigate }: NavbarProps) {
     } catch {
       setNotifCount(0);
     }
-  };
+  }, [isAuthenticated, token]);
 
   useEffect(() => {
-    if (!isAuthenticated || !token) {
-      setNotifCount(0);
-      return;
-    }
-    void loadUnread();
+    if (!isAuthenticated || !token) return;
+    const bootTimer = window.setTimeout(() => {
+      void loadUnread();
+    }, 0);
     const interval = window.setInterval(() => void loadUnread(), 60_000);
-    return () => window.clearInterval(interval);
-  }, [isAuthenticated, token]);
+    return () => {
+      window.clearTimeout(bootTimer);
+      window.clearInterval(interval);
+    };
+  }, [isAuthenticated, token, loadUnread]);
 
   useEffect(() => {
     if (!notifOpen || !token) return;
@@ -137,6 +139,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
   const notificationsForPopover = notifUnreadOnly
     ? notifications.filter((n) => isNotificationUnread(n))
     : notifications;
+  const displayedNotifCount = isAuthenticated ? notifCount : 0;
 
   return (
     <>
@@ -185,12 +188,6 @@ export function Navbar({ onNavigate }: NavbarProps) {
                   >
                     {t.nav.profile}
                   </button>
-                  <button
-                    onClick={() => handleNavigate("settings")}
-                    className={navLinkClass}
-                  >
-                    {t.nav.settings}
-                  </button>
                 </>
               )}
               <button
@@ -213,7 +210,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                     >
                       <Bell className="h-4 w-4 shrink-0 text-white" />
                       <span className="text-sm font-semibold tabular-nums">
-                        {notifCount > 99 ? "99+" : notifCount}
+                        {displayedNotifCount > 99 ? "99+" : displayedNotifCount}
                       </span>
                     </button>
                   </PopoverTrigger>

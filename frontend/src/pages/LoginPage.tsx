@@ -38,6 +38,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendHint, setResendHint] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +63,7 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
           role: res.role,
         },
         res.token,
+        rememberMe,
       );
       nav(redirectAfterLogin, { replace: true });
     } catch (err) {
@@ -163,7 +165,11 @@ export function LoginPage({ onNavigate }: LoginPageProps) {
             </div>
 
             <div className="flex items-center gap-2">
-              <Checkbox id="remember" />
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(Boolean(checked))}
+              />
               <label htmlFor="remember" className="cursor-pointer text-sm text-muted-foreground">
                 {a.remember}
               </label>
