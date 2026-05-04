@@ -12,13 +12,17 @@ import com.timebank.timebank.user.dto.LoginRequest;
 import com.timebank.timebank.user.dto.LoginResponse;
 import com.timebank.timebank.user.dto.RegisterRequest;
 import com.timebank.timebank.user.dto.RegistrationOutcome;
+import com.timebank.timebank.user.dto.SocialLoginRequest;
 import com.timebank.timebank.user.dto.UpdateUserProfileRequest;
 import com.timebank.timebank.user.dto.UserDashboardResponse;
 import com.timebank.timebank.common.EmailVerificationRequiredException;
 import com.timebank.timebank.mail.RegistrationMailService;
 import com.timebank.timebank.user.dto.PublicUserProfileResponse;
+import com.timebank.timebank.user.dto.UserBlockStateResponse;
 import com.timebank.timebank.user.dto.UserProfileResponse;
 import jakarta.persistence.EntityManager;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -26,6 +30,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -42,6 +52,7 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
@@ -53,8 +64,10 @@ public class UserService {
     private final UserNotificationRepository userNotificationRepository;
     private final TimeTransactionRepository timeTransactionRepository;
     private final PendingSignupRepository pendingSignupRepository;
+    private final UserBlockRepository userBlockRepository;
     private final RegistrationMailService registrationMailService;
     private final EntityManager entityManager;
+    private final ObjectMapper objectMapper;
 
     public UserService(UserRepository userRepository,
                        BCryptPasswordEncoder passwordEncoder,
@@ -66,8 +79,10 @@ public class UserService {
                        UserNotificationRepository userNotificationRepository,
                        TimeTransactionRepository timeTransactionRepository,
                        PendingSignupRepository pendingSignupRepository,
+                       UserBlockRepository userBlockRepository,
                        RegistrationMailService registrationMailService,
-                       EntityManager entityManager) {
+                       EntityManager entityManager,
+                       ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -78,8 +93,10 @@ public class UserService {
         this.userNotificationRepository = userNotificationRepository;
         this.timeTransactionRepository = timeTransactionRepository;
         this.pendingSignupRepository = pendingSignupRepository;
+        this.userBlockRepository = userBlockRepository;
         this.registrationMailService = registrationMailService;
         this.entityManager = entityManager;
+        this.objectMapper = objectMapper;
     }
 
     /** JPQL delete bazen aynı TX içinde INSERT'tan önce DB'ye yansımıyor; native + flush güvenilir. */
@@ -258,6 +275,44 @@ public class UserService {
         registrationMailService.sendVerificationEmail(saved);
     }
 
+    @Transactional
+    public UserBlockStateResponse blockUser(String blockerEmail, UUID blockedUserId) {
+        User blocker = userRepository.findByEmailIgnoreCase(blockerEmail)
+                .orElseThrow(() -> new BadCredentialsException("Kullanıcı bulunamadı"));
+        User blocked = userRepository.findById(blockedUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Kullanıcı bulunamadı"));
+
+        if (blocker.getId().equals(blocked.getId())) {
+            throw new IllegalArgumentException("Kendinizi engelleyemezsiniz");
+        }
+
+        if (!userBlockRepository.existsByBlocker_IdAndBlocked_Id(blocker.getId(), blocked.getId())) {
+            UserBlock rel = new UserBlock();
+            rel.setBlocker(blocker);
+            rel.setBlocked(blocked);
+            userBlockRepository.save(rel);
+        }
+        return getMyBlockState(blockerEmail);
+    }
+
+    @Transactional
+    public UserBlockStateResponse unblockUser(String blockerEmail, UUID blockedUserId) {
+        User blocker = userRepository.findByEmailIgnoreCase(blockerEmail)
+                .orElseThrow(() -> new BadCredentialsException("Kullanıcı bulunamadı"));
+        userBlockRepository.deleteByBlocker_IdAndBlocked_Id(blocker.getId(), blockedUserId);
+        return getMyBlockState(blockerEmail);
+    }
+
+    @Transactional(readOnly = true)
+    public UserBlockStateResponse getMyBlockState(String userEmail) {
+        User me = userRepository.findByEmailIgnoreCase(userEmail)
+                .orElseThrow(() -> new BadCredentialsException("Kullanıcı bulunamadı"));
+        return new UserBlockStateResponse(
+                userBlockRepository.findBlockedUserIds(me.getId()),
+                userBlockRepository.findBlockedByUserIds(me.getId())
+        );
+    }
+
     /** 6 haneli sayısal kod (e-postada gönderilir). */
     private static String newVerificationCode() {
         return String.format("%06d", RANDOM.nextInt(1_000_000));
@@ -289,6 +344,112 @@ public class UserService {
                 user.getFullName(),
                 user.getRole()
         );
+    }
+
+    @Transactional
+    public LoginResponse socialLogin(SocialLoginRequest req) {
+        String provider = req.getProvider() == null ? "" : req.getProvider().trim().toLowerCase();
+        String token = req.getAccessToken() == null ? "" : req.getAccessToken().trim();
+        if (provider.isEmpty() || token.isEmpty()) {
+            throw new IllegalArgumentException("Sosyal giriş bilgisi eksik");
+        }
+
+        SocialIdentity identity = switch (provider) {
+            case "google" -> fetchGoogleIdentity(token);
+            case "facebook" -> fetchFacebookIdentity(token);
+            default -> throw new IllegalArgumentException("Desteklenmeyen sosyal sağlayıcı");
+        };
+
+        String email = identity.email().trim().toLowerCase();
+        if (email.isEmpty()) {
+            throw new IllegalArgumentException("Sosyal hesap e-posta bilgisi döndürmedi");
+        }
+        String fullName = identity.fullName().isBlank() ? email : identity.fullName().trim();
+
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
+            user = new User();
+            user.setEmail(email);
+            user.setFullName(fullName);
+            // Sosyal girişte parola kullanılmaz; rastgele hash saklanır.
+            user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
+            user.setRole("USER");
+            user.setTimeCreditMinutes(60);
+            user.skipEmailVerification();
+            user = userRepository.save(user);
+        } else if (!user.isEmailVerified()) {
+            user.skipEmailVerification();
+            userRepository.save(user);
+        }
+
+        String appToken = jwtService.generateToken(user.getEmail(), user.getRole());
+        return new LoginResponse(
+                appToken,
+                user.getId(),
+                user.getEmail(),
+                user.getFullName(),
+                user.getRole()
+        );
+    }
+
+    private SocialIdentity fetchGoogleIdentity(String accessToken) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create("https://www.googleapis.com/oauth2/v3/userinfo"))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalArgumentException("Google doğrulaması başarısız");
+            }
+            JsonNode body = objectMapper.readTree(response.body());
+            String email = text(body, "email");
+            String name = text(body, "name");
+            if (email.isBlank()) {
+                throw new IllegalArgumentException("Google hesabı e-posta bilgisi döndürmedi");
+            }
+            return new SocialIdentity(email, name);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Google ile giriş tamamlanamadı");
+        }
+    }
+
+    private SocialIdentity fetchFacebookIdentity(String accessToken) {
+        try {
+            String url = "https://graph.facebook.com/me?fields=id,name,email&access_token="
+                    + URLEncoder.encode(accessToken, StandardCharsets.UTF_8);
+            HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalArgumentException("Facebook doğrulaması başarısız");
+            }
+            JsonNode body = objectMapper.readTree(response.body());
+            String email = text(body, "email");
+            String name = text(body, "name");
+            if (email.isBlank()) {
+                throw new IllegalArgumentException("Facebook hesabı e-posta bilgisi döndürmedi");
+            }
+            return new SocialIdentity(email, name);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Facebook ile giriş tamamlanamadı");
+        }
+    }
+
+    private static String text(JsonNode node, String field) {
+        if (node == null || node.get(field) == null || node.get(field).isNull()) {
+            return "";
+        }
+        return node.get(field).asText("");
+    }
+
+    private record SocialIdentity(String email, String fullName) {
     }
 
     public UserProfileResponse getMyProfile(String email) {

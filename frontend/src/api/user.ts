@@ -91,3 +91,29 @@ export function fetchPublicUserProfile(token: string, userId: string) {
     token,
   });
 }
+
+export type UserBlockStateDto = {
+  blockedUserIds: string[];
+  blockedByUserIds: string[];
+};
+
+export function fetchMyBlockState(token: string) {
+  return apiFetch<UserBlockStateDto>("/api/users/me/blocks", {
+    method: "GET",
+    token,
+  });
+}
+
+export function blockUser(token: string, userId: string) {
+  return apiFetch<UserBlockStateDto>(`/api/users/${encodeURIComponent(userId)}/block`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function unblockUser(token: string, userId: string) {
+  return apiFetch<UserBlockStateDto>(`/api/users/${encodeURIComponent(userId)}/block`, {
+    method: "DELETE",
+    token,
+  });
+}

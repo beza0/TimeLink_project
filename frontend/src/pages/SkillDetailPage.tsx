@@ -847,7 +847,14 @@ export function SkillDetailPage({
                       type="button"
                       variant="outline"
                       className="w-full"
-                      onClick={() => onNavigate?.("messages")}
+                      onClick={() => {
+                        try {
+                          sessionStorage.setItem("timelink_open_user", skill.ownerId);
+                        } catch {
+                          /* ignore */
+                        }
+                        onNavigate?.("messages");
+                      }}
                     >
                       <MessageCircle className="mr-2 h-4 w-4" />
                       {s.messageInstructor}

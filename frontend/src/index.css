@@ -298,6 +298,20 @@
     border-radius: 0;
   }
 
+  /* Global clickable cursor for all pages */
+  button,
+  [role="button"],
+  a,
+  summary,
+  input:where([type="button"], [type="submit"], [type="reset"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:where([type="button"], [type="submit"], [type="reset"]):disabled {
+    cursor: not-allowed;
+  }
+
   ::file-selector-button {
     font: inherit;
     font-feature-settings: inherit;

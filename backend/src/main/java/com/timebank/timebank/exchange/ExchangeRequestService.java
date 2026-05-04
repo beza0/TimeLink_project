@@ -11,6 +11,7 @@ import com.timebank.timebank.transaction.TimeTransaction;
 import com.timebank.timebank.transaction.TimeTransactionRepository;
 import com.timebank.timebank.transaction.TransactionType;
 import com.timebank.timebank.notification.NotificationService;
+import com.timebank.timebank.user.UserBlockRepository;
 import com.timebank.timebank.user.User;
 import com.timebank.timebank.user.UserRepository;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -36,6 +37,7 @@ public class ExchangeRequestService {
     private final UserRepository userRepository;
     private final TimeTransactionRepository timeTransactionRepository;
     private final NotificationService notificationService;
+    private final UserBlockRepository userBlockRepository;
 
     public ExchangeRequestService(
             ExchangeRequestRepository exchangeRequestRepository,
@@ -43,7 +45,8 @@ public class ExchangeRequestService {
             SkillRepository skillRepository,
             UserRepository userRepository,
             TimeTransactionRepository timeTransactionRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            UserBlockRepository userBlockRepository
     ) {
         this.exchangeRequestRepository = exchangeRequestRepository;
         this.exchangeMessageRepository = exchangeMessageRepository;
@@ -51,6 +54,7 @@ public class ExchangeRequestService {
         this.userRepository = userRepository;
         this.timeTransactionRepository = timeTransactionRepository;
         this.notificationService = notificationService;
+        this.userBlockRepository = userBlockRepository;
     }
 
     @Transactional
@@ -479,11 +483,18 @@ public class ExchangeRequestService {
         }
         User sender = userRepository.findByEmailIgnoreCase(userEmail)
                 .orElseThrow(() -> new BadCredentialsException("Kullanıcı bulunamadı"));
+        User otherUser = ex.getRequester().getId().equals(sender.getId())
+                ? ex.getSkill().getOwner()
+                : ex.getRequester();
+        if (userBlockRepository.existsByBlocker_IdAndBlocked_Id(otherUser.getId(), sender.getId())) {
+            throw new IllegalArgumentException("Bu kullanıcı sizi engelledi. Mesaj gönderemezsiniz");
+        }
         ExchangeMessage msg = new ExchangeMessage();
         msg.setExchangeRequest(ex);
         msg.setSender(sender);
         msg.setBody(req.getBody().trim());
         ExchangeMessage saved = exchangeMessageRepository.save(msg);
+        notificationService.notifyNewExchangeMessage(ex, sender);
         return mapMessage(saved);
     }
 

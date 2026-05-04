@@ -58,7 +58,19 @@ import {
   type ExchangeRequestDto,
 } from "../api/exchange";
 import { apiErrorDisplayMessage } from "../api/client";
-import { fetchMyProfile } from "../api/user";
+import {
+  blockUser,
+  fetchMyBlockState,
+  fetchMyProfile,
+  fetchPublicUserProfile,
+  type PublicUserProfileDto,
+  unblockUser,
+} from "../api/user";
+import {
+  fetchNotifications,
+  isNotificationUnread,
+  markNotificationRead,
+} from "../api/notifications";
 import { useBookingAvailabilityFromSkill } from "../hooks/useBookingAvailabilityFromSkill";
 import {
   BOOKING_HORIZON_DAYS,
@@ -76,6 +88,7 @@ interface MessagesPageProps {
 }
 
 const OPEN_EXCHANGE_KEY = "timelink_open_exchange";
+const OPEN_USER_KEY = "timelink_open_user";
 
 function tomorrowDateStr(): string {
   const t = new Date();
@@ -306,6 +319,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   const m = t.messagesPage;
   const sd = t.skillDetail;
   const { user, token, patchUser } = useAuth();
+  const [resolvedMyUserId, setResolvedMyUserId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<ConversationRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -316,9 +330,14 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   const [openFromNavExchangeId, setOpenFromNavExchangeId] = useState<
     string | null
   >(null);
+  const [openFromNavUserId, setOpenFromNavUserId] = useState<string | null>(null);
+  const [blockedUserIds, setBlockedUserIds] = useState<string[]>([]);
+  const [blockedByUserIds, setBlockedByUserIds] = useState<string[]>([]);
+  const [userAvatarById, setUserAvatarById] = useState<Record<string, string>>({});
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [threadLines, setThreadLines] = useState<ThreadLine[]>([]);
+  const threadScrollRef = useRef<HTMLDivElement | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   /** Mesaj gönderme / kabul-red vb.; rezervasyon modalı `bookError` kullanır (karışmasın). */
   const [chatActionError, setChatActionError] = useState<string | null>(null);
@@ -339,6 +358,8 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   );
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [blockConfirmPending, setBlockConfirmPending] = useState(false);
   /**
    * Modal açılmadan önce `/api/users/me/profile` ile tamamlanan kullanıcı id (öğrenci müsaitlik dalı).
    * Oturumda `user.id` eksikse refuse-and-offer sonrası reddedilmiş talepte bile talep sahibi doğru seçilir.
@@ -397,8 +418,45 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
       uiStatus: toUiStatus(ex, user?.id),
     };
   }, [rows, selectedOtherUserId, activeExchangeId, user?.id]);
+  const effectiveMyUserId = user?.id ?? resolvedMyUserId;
+  const selectedOtherId = selected
+    ? getOtherUserId(selected.ex, effectiveMyUserId ?? undefined).toLowerCase()
+    : null;
+  const isSelectedBlocked = Boolean(
+    selectedOtherId && blockedUserIds.includes(selectedOtherId),
+  );
+  const isBlockedBySelected = Boolean(
+    selectedOtherId && blockedByUserIds.includes(selectedOtherId),
+  );
 
   const effectiveBookingUserId = user?.id ?? bookingModalUserId ?? undefined;
+
+  useEffect(() => {
+    if (!token) {
+      setResolvedMyUserId(null);
+      return;
+    }
+    if (user?.id) {
+      setResolvedMyUserId(user.id);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await fetchMyProfile(token);
+        const id = me?.id?.trim();
+        if (!cancelled && id) {
+          setResolvedMyUserId(id);
+          patchUser({ id });
+        }
+      } catch {
+        if (!cancelled) setResolvedMyUserId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.id, patchUser]);
 
   const studentUsesSkillAvailability = useMemo(() => {
     if (!selected || !effectiveBookingUserId) return false;
@@ -544,6 +602,11 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
         setOpenFromNavExchangeId(open);
         sessionStorage.removeItem(OPEN_EXCHANGE_KEY);
       }
+      const openUser = sessionStorage.getItem(OPEN_USER_KEY);
+      if (openUser?.trim()) {
+        setOpenFromNavUserId(openUser.trim().toLowerCase());
+        sessionStorage.removeItem(OPEN_USER_KEY);
+      }
     } catch {
       /* ignore */
     }
@@ -551,11 +614,110 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
 
   useEffect(() => {
     const o = searchParams.get("open");
+    const u = searchParams.get("user");
     if (o) {
       setOpenFromNavExchangeId(o);
+    }
+    if (u?.trim()) {
+      setOpenFromNavUserId(u.trim().toLowerCase());
+    }
+    if (o || u) {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  const hydrateBlockState = useCallback(
+    async (authToken: string) => {
+      const state = await fetchMyBlockState(authToken);
+      const mine = Array.from(
+        new Set(
+          (state.blockedUserIds ?? [])
+            .map((v) => String(v).trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const blockedMe = Array.from(
+        new Set(
+          (state.blockedByUserIds ?? [])
+            .map((v) => String(v).trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      setBlockedUserIds(mine);
+      setBlockedByUserIds(blockedMe);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!token) {
+      setBlockedUserIds([]);
+      setBlockedByUserIds([]);
+      return;
+    }
+    void hydrateBlockState(token).catch(() => {
+      setBlockedUserIds([]);
+      setBlockedByUserIds([]);
+    });
+  }, [token, hydrateBlockState]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await fetchNotifications(token);
+        if (cancelled) return;
+        const unreadMessageNotificationIds = list
+          .filter((n) => isNotificationUnread(n) && Boolean(n.exchangeRequestId))
+          .map((n) => n.id);
+        if (unreadMessageNotificationIds.length === 0) return;
+        await Promise.all(
+          unreadMessageNotificationIds.map((id) =>
+            markNotificationRead(token, id).catch(() => undefined),
+          ),
+        );
+        window.dispatchEvent(new Event("timelink:notifications-changed"));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || rows.length === 0) return;
+    const missingIds = Array.from(
+      new Set(
+        rows
+          .map((r) => r.otherUserId.trim().toLowerCase())
+          .filter((id) => id && !userAvatarById[id]),
+      ),
+    );
+    if (missingIds.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      const resolved: Record<string, string> = {};
+      await Promise.all(
+        missingIds.map(async (id) => {
+          try {
+            const p: PublicUserProfileDto = await fetchPublicUserProfile(token, id);
+            const src = p.avatarUrl?.trim();
+            if (src) resolved[id] = src;
+          } catch {
+            /* ignore individual failures */
+          }
+        }),
+      );
+      if (cancelled || Object.keys(resolved).length === 0) return;
+      setUserAvatarById((prev) => ({ ...prev, ...resolved }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, token, userAvatarById]);
 
   useEffect(() => {
     if (!openFromNavExchangeId || rows.length === 0) return;
@@ -569,6 +731,18 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
     }
     setOpenFromNavExchangeId(null);
   }, [rows, openFromNavExchangeId]);
+
+  useEffect(() => {
+    if (!openFromNavUserId || rows.length === 0) return;
+    const row = rows.find(
+      (r) => r.otherUserId.trim().toLowerCase() === openFromNavUserId,
+    );
+    if (row) {
+      setSelectedOtherUserId(row.otherUserId);
+      setActiveExchangeId(row.exchanges[0]?.id ?? null);
+    }
+    setOpenFromNavUserId(null);
+  }, [rows, openFromNavUserId]);
 
   useEffect(() => {
     if (!selectedOtherUserId) return;
@@ -603,6 +777,59 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
     }
     onViewUserProfile?.(oid);
   }, [onNavigate, onViewUserProfile, selected, user?.id]);
+
+  const toggleBlockSelectedUser = useCallback(async () => {
+    if (!selected || !token) return;
+    const oid = getOtherUserId(selected.ex, user?.id).toLowerCase();
+    if (!oid) return;
+    setChatActionError(null);
+    try {
+      if (blockedUserIds.includes(oid)) {
+        const state = await unblockUser(token, oid);
+        setBlockedUserIds(
+          Array.from(
+            new Set(
+              (state.blockedUserIds ?? [])
+                .map((id) => String(id).trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ),
+        );
+      } else {
+        const state = await blockUser(token, oid);
+        setBlockedUserIds(
+          Array.from(
+            new Set(
+              (state.blockedUserIds ?? [])
+                .map((id) => String(id).trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          ),
+        );
+      }
+      await hydrateBlockState(token);
+    } catch (e) {
+      setChatActionError(apiErrorDisplayMessage(e, m.actionError));
+    }
+  }, [blockedUserIds, hydrateBlockState, m.actionError, selected, token, user?.id]);
+
+  const handleBlockButtonClick = useCallback(() => {
+    if (isSelectedBlocked) {
+      void toggleBlockSelectedUser();
+      return;
+    }
+    setBlockConfirmOpen(true);
+  }, [isSelectedBlocked, toggleBlockSelectedUser]);
+
+  const confirmBlockSelectedUser = useCallback(async () => {
+    setBlockConfirmPending(true);
+    try {
+      await toggleBlockSelectedUser();
+      setBlockConfirmOpen(false);
+    } finally {
+      setBlockConfirmPending(false);
+    }
+  }, [toggleBlockSelectedUser]);
 
   const loadThread = useCallback(
     async (row: ConversationRow | null) => {
@@ -690,6 +917,16 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   useEffect(() => {
     if (selected) void loadThread(selected.row);
   }, [selected, loadThread]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const node = threadScrollRef.current;
+    if (!node) return;
+    const raf = window.requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [selected?.ex.id, threadLines.length, loadingThread]);
 
   const filteredRows = rows.filter((r) => {
     const q = searchQuery.toLowerCase().trim();
@@ -832,6 +1069,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
 
   const handleSend = async () => {
     if (!token || !selected || !messageText.trim()) return;
+    if (isBlockedBySelected) return;
     if (!isMessageEnabledStatus(selected.ex.status)) return;
     setChatActionError(null);
     try {
@@ -1024,6 +1262,11 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                 ) : (
                   filteredRows.map((conv) => {
                     const latest = conv.exchanges[0];
+                    const isBlocked = blockedUserIds.includes(
+                      conv.otherUserId.toLowerCase(),
+                    );
+                    const convAvatar =
+                      userAvatarById[conv.otherUserId.trim().toLowerCase()];
                     return (
                     <button
                       key={conv.otherUserId}
@@ -1039,12 +1282,20 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
-                          aria-hidden
-                        >
-                          {initialsFromFullName(conv.otherName)}
-                        </div>
+                        {convAvatar ? (
+                          <img
+                            src={convAvatar}
+                            alt=""
+                            className="h-12 w-12 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+                            aria-hidden
+                          >
+                            {initialsFromFullName(conv.otherName)}
+                          </div>
+                        )}
 
                         <div className="min-w-0 flex-1">
                           <div className="mb-1 flex items-center justify-between gap-2">
@@ -1067,34 +1318,31 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                             {conv.lastPreview}
                           </p>
 
-                          {conv.listUiStatus === "pending-incoming" && (
-                            <Badge variant="secondary" className="mt-2">
-                              {m.pendingRequest}
-                            </Badge>
-                          )}
-                          {conv.listUiStatus === "pending-outgoing" && (
-                            <Badge variant="outline" className="mt-2">
-                              {m.waitingApproval}
-                            </Badge>
-                          )}
-                          {conv.listUiStatus === "rejected" && (
-                            <Badge variant="destructive" className="mt-2">
-                              {m.rejectedBadge}
-                            </Badge>
-                          )}
-                          {conv.listUiStatus === "accepted" && (
-                            <Badge className="mt-2 bg-emerald-600/90 text-white">
-                              {m.acceptedBadge}
-                            </Badge>
-                          )}
-                          {conv.listUiStatus === "cancelled" && (
-                            <Badge variant="secondary" className="mt-2">
-                              {m.cancelledBadge}
-                            </Badge>
-                          )}
-                          {conv.listUiStatus === "completed" && (
-                            <Badge className="mt-2">{m.completedBadge}</Badge>
-                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            {conv.listUiStatus === "pending-incoming" && (
+                              <Badge variant="secondary">{m.pendingRequest}</Badge>
+                            )}
+                            {conv.listUiStatus === "pending-outgoing" && (
+                              <Badge variant="outline">{m.waitingApproval}</Badge>
+                            )}
+                            {conv.listUiStatus === "rejected" && (
+                              <Badge variant="destructive">{m.rejectedBadge}</Badge>
+                            )}
+                            {conv.listUiStatus === "accepted" && (
+                              <Badge className="bg-emerald-600/90 text-white">
+                                {m.acceptedBadge}
+                              </Badge>
+                            )}
+                            {conv.listUiStatus === "cancelled" && (
+                              <Badge variant="secondary">{m.cancelledBadge}</Badge>
+                            )}
+                            {conv.listUiStatus === "completed" && (
+                              <Badge>{m.completedBadge}</Badge>
+                            )}
+                            {isBlocked && (
+                              <Badge variant="outline">{m.blockedBadge}</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -1125,12 +1373,20 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                         className="flex min-w-0 max-w-full items-center gap-3 rounded-lg p-0 text-left transition hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         title={m.viewMemberProfileTitle}
                       >
-                        <div
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
-                          aria-hidden
-                        >
-                          {initialsFromFullName(selected.otherName)}
-                        </div>
+                        {selectedOtherId && userAvatarById[selectedOtherId] ? (
+                          <img
+                            src={userAvatarById[selectedOtherId]}
+                            alt=""
+                            className="h-10 w-10 shrink-0 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground"
+                            aria-hidden
+                          >
+                            {initialsFromFullName(selected.otherName)}
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <h3 className="truncate text-foreground">
                             {selected.otherName}
@@ -1141,11 +1397,20 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                         </div>
                       </button>
                     </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={isSelectedBlocked ? "outline" : "destructive"}
+                      className="ml-3 shrink-0"
+                      onClick={handleBlockButtonClick}
+                    >
+                      {isSelectedBlocked ? m.unblockUser : m.blockUser}
+                    </Button>
                   </div>
 
                   {selected.uiStatus === "pending-incoming" && (
-                    <div className="border-b border-blue-100 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/40">
-                      <p className="mb-3 text-sm text-foreground/90">
+                    <div className="border-b border-sky-200/80 bg-gradient-to-r from-sky-50 via-indigo-50 to-purple-50 p-4 dark:border-sky-800/60 dark:bg-gradient-to-r dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/70">
+                      <p className="mb-3 text-sm font-medium text-slate-800 dark:text-sky-100">
                         {formatTemplate(
                           selected.ex.pendingFromOwner
                             ? m.ownerProposedNewSlot
@@ -1155,7 +1420,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                           },
                         )}
                       </p>
-                      <div className="mb-3 space-y-1 text-sm text-foreground/80">
+                      <div className="mb-3 rounded-xl border border-sky-200/80 bg-white/70 p-3 text-sm text-slate-700 shadow-sm dark:border-sky-800/60 dark:bg-slate-900/70 dark:text-slate-100">
                         <p>
                           {m.requestSkill}: {selected.ex.skillTitle}
                         </p>
@@ -1179,6 +1444,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                         <Button
                           size="sm"
                           variant="outline"
+                          className="border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100 dark:!border-slate-500 dark:!bg-slate-800 dark:!text-slate-100 dark:hover:!bg-slate-700"
                           onClick={() => void handleReject(selected.ex.id)}
                         >
                           <X className="mr-1 h-4 w-4" />
@@ -1187,6 +1453,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                         <Button
                           size="sm"
                           variant="outline"
+                          className="border-slate-300 bg-white/90 text-slate-700 hover:bg-slate-100 dark:!border-slate-500 dark:!bg-slate-800 dark:!text-slate-100 dark:hover:!bg-slate-700"
                           onClick={() =>
                             void handleRejectAndOfferOtherTime(selected.ex.id)
                           }
@@ -1282,7 +1549,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                     </div>
                   )}
 
-                  <div className="flex-1 space-y-4 overflow-y-auto p-4">
+                  <div ref={threadScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
                     {loadingThread ? (
                       <p className="text-center text-sm text-muted-foreground">
                         {t.common.loading}
@@ -1349,6 +1616,14 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                       {chatActionError}
                     </div>
                   ) : null}
+                  {isBlockedBySelected ? (
+                    <div
+                      role="status"
+                      className="shrink-0 border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"
+                    >
+                      {m.blockedHint}
+                    </div>
+                  ) : null}
 
                   {isMessageEnabledStatus(selected.ex.status) ||
                   (isPendingExchangeStatus(selected.ex.status) &&
@@ -1356,8 +1631,13 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                     <div className="border-t border-border p-4">
                       <div className="flex gap-2">
                         <Input
-                          placeholder={m.typeMessage}
+                          placeholder={
+                            isBlockedBySelected
+                              ? m.blockedInputPlaceholder
+                              : m.typeMessage
+                          }
                           value={messageText}
+                          disabled={isBlockedBySelected}
                           onChange={(e) => setMessageText(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
@@ -1370,7 +1650,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                           type="button"
                           className="bg-gradient-to-r from-blue-500 to-purple-600 text-white"
                           onClick={() => void handleSend()}
-                          disabled={!messageText.trim()}
+                          disabled={isBlockedBySelected || !messageText.trim()}
                         >
                           <Send className="h-4 w-4" />
                         </Button>
@@ -1424,6 +1704,43 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
               onClick={() => void handleCancelExchange()}
             >
               {selected?.uiStatus === "pending-outgoing" ? m.cancelPending : m.cancelSession}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        open={blockConfirmOpen}
+        onOpenChange={(open) => {
+          if (blockConfirmPending) return;
+          setBlockConfirmOpen(open);
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>{m.blockConfirmTitle}</ModalTitle>
+            <ModalDescription>
+              <span className="block whitespace-pre-line text-sm text-muted-foreground">
+                {m.blockConfirmBody}
+              </span>
+            </ModalDescription>
+          </ModalHeader>
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={blockConfirmPending}
+              onClick={() => setBlockConfirmOpen(false)}
+            >
+              {t.common.cancel}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={blockConfirmPending}
+              onClick={() => void confirmBlockSelectedUser()}
+            >
+              {m.blockConfirmAction}
             </Button>
           </ModalFooter>
         </ModalContent>

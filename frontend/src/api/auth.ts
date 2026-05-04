@@ -61,3 +61,13 @@ export async function resendVerificationEmail(email: string): Promise<void> {
     body: JSON.stringify({ email }),
   });
 }
+
+export async function socialLoginRequest(body: {
+  provider: "google" | "facebook";
+  accessToken: string;
+}): Promise<LoginResponse> {
+  return apiFetch<LoginResponse>("/api/auth/social-login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

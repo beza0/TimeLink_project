@@ -103,6 +103,7 @@ function AppRoutesContent() {
           <BrowsePage
             onNavigate={onPage}
             onOpenSkillDetail={openSkill}
+            onOpenUserProfile={openUserProfile}
           />
         }
       />

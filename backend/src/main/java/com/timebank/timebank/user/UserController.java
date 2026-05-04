@@ -4,8 +4,10 @@ import com.timebank.timebank.user.dto.LoginRequest;
 import com.timebank.timebank.user.dto.LoginResponse;
 import com.timebank.timebank.user.dto.RegisterRequest;
 import com.timebank.timebank.user.dto.ResendVerificationRequest;
+import com.timebank.timebank.user.dto.SocialLoginRequest;
 import com.timebank.timebank.user.dto.UpdateUserProfileRequest;
 import com.timebank.timebank.user.dto.UserDashboardResponse;
+import com.timebank.timebank.user.dto.UserBlockStateResponse;
 import com.timebank.timebank.user.dto.PublicUserProfileResponse;
 import com.timebank.timebank.user.dto.UserProfileResponse;
 import com.timebank.timebank.user.dto.UserResponse;
@@ -80,6 +82,11 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/auth/social-login")
+    public ResponseEntity<LoginResponse> socialLogin(@Valid @RequestBody SocialLoginRequest req) {
+        return ResponseEntity.ok(userService.socialLogin(req));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<String> me(Authentication authentication) {
         return ResponseEntity.ok("Hello " + authentication.getName());
@@ -130,5 +137,26 @@ public class UserController {
     public ResponseEntity<Void> deleteMyAccountPost(Authentication authentication) {
         userService.deleteAccount(authentication.getName());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/users/me/blocks")
+    public ResponseEntity<UserBlockStateResponse> getMyBlockState(Authentication authentication) {
+        return ResponseEntity.ok(userService.getMyBlockState(authentication.getName()));
+    }
+
+    @PostMapping("/users/{userId}/block")
+    public ResponseEntity<UserBlockStateResponse> blockUser(
+            @PathVariable UUID userId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(userService.blockUser(authentication.getName(), userId));
+    }
+
+    @DeleteMapping("/users/{userId}/block")
+    public ResponseEntity<UserBlockStateResponse> unblockUser(
+            @PathVariable UUID userId,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(userService.unblockUser(authentication.getName(), userId));
     }
 }

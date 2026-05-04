@@ -72,6 +72,23 @@ public class NotificationService {
         userNotificationRepository.save(n);
     }
 
+    @Transactional
+    public void notifyNewExchangeMessage(ExchangeRequest ex, User sender) {
+        if (ex == null || sender == null) return;
+        User requester = ex.getRequester();
+        User owner = ex.getSkill().getOwner();
+        if (requester == null || owner == null) return;
+
+        User receiver = sender.getId().equals(requester.getId()) ? owner : requester;
+        String title = "Yeni mesaj";
+        String body = String.format(
+                "%s, \"%s\" oturumu için size yeni bir mesaj gönderdi.",
+                sender.getFullName(),
+                ex.getSkill().getTitle()
+        );
+        userNotificationRepository.save(new UserNotification(receiver, title, body, ex));
+    }
+
     /**
      * İptal anında taraftan sadece karşı tarafa gider. actorEmail iptal butonuna basan kullanıcının e-postasıdır.
      */

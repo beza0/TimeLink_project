@@ -71,7 +71,11 @@ export function ModalHeader({
 }
 
 export function ModalTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-xl text-card-foreground">{children}</h2>;
+  return (
+    <h2 className="break-words text-lg leading-tight text-card-foreground sm:text-xl">
+      {children}
+    </h2>
+  );
 }
 
 export function ModalDescription({ children }: { children: React.ReactNode }) {

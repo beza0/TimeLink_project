@@ -30,6 +30,7 @@ interface SkillCardProps {
   /** Kendi ilanın; Book gösterilmez */
   showBookCta?: boolean;
   onBookNow?: () => void;
+  onInstructorClick?: () => void;
 }
 
 export function SkillCard({
@@ -44,6 +45,7 @@ export function SkillCard({
   tags,
   showBookCta = true,
   onBookNow,
+  onInstructorClick,
 }: SkillCardProps) {
   const { t } = useLanguage();
   const b = t.browse;
@@ -83,7 +85,13 @@ export function SkillCard({
       <div className="p-5">
         <h3 className="mb-3 text-xl text-foreground">{title}</h3>
 
-        <div className="mb-4 flex items-center gap-3">
+        <button
+          type="button"
+          className="mb-4 flex w-full cursor-pointer items-center gap-3 rounded-lg text-left transition-colors hover:bg-muted/40"
+          onClick={onInstructorClick}
+          disabled={!onInstructorClick}
+          aria-label={instructor.name}
+        >
           {hasAvatar ? (
             <ImageWithFallback
               src={instructor.image}
@@ -109,7 +117,7 @@ export function SkillCard({
               </span>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="mb-4 flex flex-wrap gap-2">
           <Badge variant="outline" className="text-xs">

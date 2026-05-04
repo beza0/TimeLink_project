@@ -28,13 +28,18 @@ import {
 interface BrowsePageProps {
   onNavigate?: (page: PageType) => void;
   onOpenSkillDetail?: (skillId: string) => void;
+  onOpenUserProfile?: (userId: string) => void;
 }
 
 const PAGE_SIZE = 6;
 
 type SortOption = "relevant" | "rated" | "newest";
 
-export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
+export function BrowsePage({
+  onNavigate,
+  onOpenSkillDetail,
+  onOpenUserProfile,
+}: BrowsePageProps) {
   const { t, locale } = useLanguage();
   const { user } = useAuth();
   const b = t.browse;
@@ -303,6 +308,7 @@ export function BrowsePage({ onNavigate, onOpenSkillDetail }: BrowsePageProps) {
                       tags={skill.tags}
                       showBookCta={!isOwnListing}
                       onBookNow={() => onOpenSkillDetail?.(skill.id)}
+                      onInstructorClick={() => onOpenUserProfile?.(skill.ownerId)}
                     />
                   );
                 })}

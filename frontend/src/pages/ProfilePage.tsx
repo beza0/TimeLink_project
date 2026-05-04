@@ -38,6 +38,7 @@ import {
 import { initialsFromFullName } from "../lib/initials";
 import { resolveSkillCoverImageUrl } from "../lib/skillCoverImageUrl";
 import { apiErrorDisplayMessage } from "../api/client";
+import { PATHS } from "../navigation/paths";
 import { Textarea } from "../components/ui/textarea";
 import { Label } from "../components/ui/label";
 import {
@@ -220,6 +221,16 @@ export function ProfilePage({
   const [mainTab, setMainTab] = useState<
     "teaching" | "learning" | "reviews"
   >("teaching");
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [hiddenLearningIds, setHiddenLearningIds] = useState<string[]>([]);
+  const [deleteLearningOpen, setDeleteLearningOpen] = useState(false);
+  const [deleteLearningTarget, setDeleteLearningTarget] =
+    useState<ExchangeRequestDto | null>(null);
+  const [deleteLearningSubmitting, setDeleteLearningSubmitting] =
+    useState(false);
+  const [deleteLearningError, setDeleteLearningError] = useState<string | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!token) {
@@ -321,9 +332,11 @@ export function ProfilePage({
   const learningBookings = useMemo(
     () =>
       sentBookings.filter(
-        (b) => b.status === "ACCEPTED" || b.status === "COMPLETED",
+        (b) =>
+          b.status === "COMPLETED" &&
+          !hiddenLearningIds.includes(b.id),
       ),
-    [sentBookings],
+    [hiddenLearningIds, sentBookings],
   );
 
   const teachingBookingsBySkill = useMemo(() => {
@@ -369,6 +382,112 @@ export function ProfilePage({
     }
   };
 
+  useEffect(() => {
+    if (!shareFeedback) return;
+    const id = window.setTimeout(() => setShareFeedback(null), 2500);
+    return () => window.clearTimeout(id);
+  }, [shareFeedback]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setHiddenLearningIds([]);
+      return;
+    }
+    const key = `timelink_hidden_learning:${user.id.toLowerCase()}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) {
+        setHiddenLearningIds([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as string[];
+      if (!Array.isArray(parsed)) {
+        setHiddenLearningIds([]);
+        return;
+      }
+      setHiddenLearningIds(
+        Array.from(new Set(parsed.map((v) => String(v).trim()).filter(Boolean))),
+      );
+    } catch {
+      setHiddenLearningIds([]);
+    }
+  }, [user?.id]);
+
+  const handleShareProfile = useCallback(async () => {
+    if (!profile?.id) {
+      setShareFeedback(p.loadError);
+      return;
+    }
+    const shareUrl = `${window.location.origin}${PATHS.user(profile.id)}`;
+    const shareTitle = displayName || "TimeLink";
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: shareTitle,
+          text: p.shareProfile,
+          url: shareUrl,
+        });
+        setShareFeedback(p.shareSuccess);
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareFeedback(p.shareCopied);
+        return;
+      }
+      const ta = document.createElement("textarea");
+      ta.value = shareUrl;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setShareFeedback(p.shareCopied);
+    } catch {
+      setShareFeedback(p.shareError);
+    }
+  }, [displayName, p, profile?.id]);
+
+  const hideLearningBooking = useCallback(
+    (bookingId: string) => {
+      if (!user?.id) return;
+      const key = `timelink_hidden_learning:${user.id.toLowerCase()}`;
+      setHiddenLearningIds((prev) => {
+        const next = Array.from(new Set([...prev, bookingId]));
+        try {
+          localStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
+    [user?.id],
+  );
+
+  const openDeleteLearningModal = useCallback((booking: ExchangeRequestDto) => {
+    setDeleteLearningTarget(booking);
+    setDeleteLearningError(null);
+    setDeleteLearningOpen(true);
+  }, []);
+
+  const confirmDeleteLearning = useCallback(async () => {
+    if (!token || !deleteLearningTarget) return;
+    setDeleteLearningSubmitting(true);
+    setDeleteLearningError(null);
+    try {
+      hideLearningBooking(deleteLearningTarget.id);
+      setDeleteLearningOpen(false);
+      setDeleteLearningTarget(null);
+    } catch (err) {
+      setDeleteLearningError(apiErrorDisplayMessage(err, p.loadError));
+    } finally {
+      setDeleteLearningSubmitting(false);
+    }
+  }, [deleteLearningTarget, hideLearningBooking, p.loadError, token]);
+
   const openReviewModal = (b: ExchangeRequestDto) => {
     setReviewTarget({
       exchangeId: b.id,
@@ -385,6 +504,13 @@ export function ProfilePage({
     givenSummary != null &&
     givenSummary.totalReviews > 0 &&
     Number.isFinite(givenSummary.averageRating);
+
+  const deleteLearningConfirmBody = formatTemplate(
+    p.deleteLearningConfirmBody,
+    {
+      skill: deleteLearningTarget?.skillTitle ?? "—",
+    },
+  );
 
   return (
     <PageLayout onNavigate={onNavigate}>
@@ -441,6 +567,8 @@ export function ProfilePage({
                     size="sm"
                     variant="outline"
                     className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                    onClick={() => void handleShareProfile()}
+                    title={p.shareProfile}
                   >
                     <Share2 className="w-4 h-4" />
                   </Button>
@@ -454,6 +582,9 @@ export function ProfilePage({
                   </Button>
                 </div>
               </div>
+              {shareFeedback ? (
+                <p className="mb-2 text-sm text-white/90">{shareFeedback}</p>
+              ) : null}
 
               {profile?.bio ? (
                 <p className="text-white/90 mb-4 max-w-2xl">{profile.bio}</p>
@@ -752,6 +883,15 @@ export function ProfilePage({
                                 {p.continueLearning}
                               </Button>
                             </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
+                              type="button"
+                              onClick={() => openDeleteLearningModal(b)}
+                            >
+                              {p.deleteLearning}
+                            </Button>
                             {b.status === "COMPLETED" ? (
                               givenByExchangeId.has(b.id) ? (
                                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -1032,6 +1172,58 @@ export function ProfilePage({
               disabled={reviewSaving || reviewRating < 1}
             >
               {p.reviewSubmit}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal
+        open={deleteLearningOpen}
+        onOpenChange={(open) => {
+          if (deleteLearningSubmitting) return;
+          setDeleteLearningOpen(open);
+          if (!open) {
+            setDeleteLearningTarget(null);
+            setDeleteLearningError(null);
+          }
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>{p.deleteLearningConfirmTitle}</ModalTitle>
+          </ModalHeader>
+          <p className="whitespace-pre-line text-sm text-muted-foreground">
+            {deleteLearningConfirmBody}
+          </p>
+          {deleteLearningError ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {deleteLearningError}
+            </p>
+          ) : null}
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteLearningSubmitting}
+              onClick={() => {
+                setDeleteLearningOpen(false);
+                setDeleteLearningTarget(null);
+                setDeleteLearningError(null);
+              }}
+            >
+              {t.common.cancel}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteLearningSubmitting}
+              onClick={() => void confirmDeleteLearning()}
+            >
+              {deleteLearningSubmitting
+                ? t.common.loading
+                : p.deleteLearningConfirmAction}
             </Button>
           </ModalFooter>
         </ModalContent>

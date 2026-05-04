@@ -8,7 +8,8 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
 import type { PageType } from "../../App";
 import { PATHS } from "../../navigation/paths";
@@ -25,7 +26,7 @@ import {
 } from "../../api/notifications";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Sidebar } from "./Sidebar";
-import { fetchMyDashboard } from "../../api/user";
+import { fetchMyDashboard, fetchMyProfile } from "../../api/user";
 
 function formatNavbarCreditHours(
   minutes: number | null,
@@ -53,10 +54,17 @@ interface NavbarProps {
 }
 
 export function Navbar({ onNavigate }: NavbarProps) {
-  const { isAuthenticated, logout, token, user } = useAuth();
+  const { isAuthenticated, logout, token, user, patchUser } = useAuth();
   const { t, locale } = useLanguage();
+  const { resolvedTheme } = useTheme();
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : false,
+  );
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [creditMinutes, setCreditMinutes] = useState<number | null>(null);
@@ -76,17 +84,56 @@ export function Navbar({ onNavigate }: NavbarProps) {
     }
   }, [isAuthenticated, token]);
 
+  const loadMessageUnread = useCallback(async () => {
+    if (!isAuthenticated || !token) {
+      setMessageUnreadCount(0);
+      return;
+    }
+    try {
+      const list = await fetchNotifications(token);
+      const count = list.filter(
+        (n) => isNotificationUnread(n) && Boolean(n.exchangeRequestId),
+      ).length;
+      setMessageUnreadCount(count);
+    } catch {
+      setMessageUnreadCount(0);
+    }
+  }, [isAuthenticated, token]);
+
   useEffect(() => {
     if (!isAuthenticated || !token) return;
     const bootTimer = window.setTimeout(() => {
       void loadUnread();
+      void loadMessageUnread();
     }, 0);
-    const interval = window.setInterval(() => void loadUnread(), 60_000);
+    const interval = window.setInterval(() => {
+      void loadUnread();
+      void loadMessageUnread();
+    }, 10_000);
+    const onFocus = () => {
+      void loadUnread();
+      void loadMessageUnread();
+    };
+    window.addEventListener("focus", onFocus);
     return () => {
       window.clearTimeout(bootTimer);
       window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
     };
-  }, [isAuthenticated, token, loadUnread]);
+  }, [isAuthenticated, token, loadMessageUnread, loadUnread]);
+
+  useEffect(() => {
+    const onNotificationsChanged = () => {
+      void loadUnread();
+      void loadMessageUnread();
+    };
+    window.addEventListener("timelink:notifications-changed", onNotificationsChanged);
+    return () =>
+      window.removeEventListener(
+        "timelink:notifications-changed",
+        onNotificationsChanged,
+      );
+  }, [loadMessageUnread, loadUnread]);
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -106,6 +153,26 @@ export function Navbar({ onNavigate }: NavbarProps) {
       cancelled = true;
     };
   }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await fetchMyProfile(token);
+        if (cancelled) return;
+        patchUser({
+          name: me.fullName || user?.name || "",
+          avatarUrl: me.avatarUrl ?? null,
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, patchUser, token, user?.name]);
 
   useEffect(() => {
     if (!notifOpen || !token) return;
@@ -136,6 +203,24 @@ export function Navbar({ onNavigate }: NavbarProps) {
     onChange();
     return () => mq.removeEventListener("change", onChange);
   }, []);
+
+  useLayoutEffect(() => {
+    const sync = () =>
+      setIsDark(document.documentElement.classList.contains("dark"));
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (resolvedTheme === "dark" || resolvedTheme === "light") {
+      setIsDark(resolvedTheme === "dark");
+    }
+  }, [resolvedTheme]);
 
   const handleNavigate = (page: PageType) => {
     if (onNavigate) {
@@ -170,8 +255,13 @@ export function Navbar({ onNavigate }: NavbarProps) {
       const list = await fetchNotifications(token);
       setNotifications(list);
       setNotifCount(list.filter((n) => isNotificationUnread(n)).length);
+      setMessageUnreadCount(
+        list.filter((n) => isNotificationUnread(n) && Boolean(n.exchangeRequestId))
+          .length,
+      );
     } catch {
       void loadUnread();
+      void loadMessageUnread();
     }
   };
 
@@ -193,6 +283,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
     ? notifications.filter((n) => isNotificationUnread(n))
     : notifications;
   const displayedNotifCount = isAuthenticated ? notifCount : 0;
+  const displayedMessageCount = isAuthenticated ? messageUnreadCount : 0;
   const profileDisplayName = user?.name?.trim() ?? "";
 
   return (
@@ -278,22 +369,34 @@ export function Navbar({ onNavigate }: NavbarProps) {
                     className="nav-notification-popover overflow-hidden rounded-2xl border border-border bg-popover p-0 text-popover-foreground shadow-2xl"
                   >
                     <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-                      <h2 className="text-lg font-semibold text-foreground">
+                      <h2 className="text-lg font-semibold text-foreground dark:text-zinc-50">
                         {t.nav.notifications}
                       </h2>
                       <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700">
+                        <label
+                          className={
+                            isDark
+                              ? "inline-flex cursor-pointer items-center gap-2 rounded-full border border-purple-500/50 bg-zinc-950 px-3 py-1.5 text-xs font-medium text-purple-200 transition-colors hover:border-purple-400/70 hover:bg-zinc-900"
+                              : "inline-flex cursor-pointer items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100"
+                          }
+                        >
                           <input
                             type="checkbox"
                             checked={notifUnreadOnly}
                             onChange={() => setNotifUnreadOnly((u) => !u)}
-                            className="h-3.5 w-3.5 rounded border-purple-300 text-purple-600 focus:ring-purple-500 dark:border-zinc-500 dark:bg-zinc-900"
+                            className={
+                              isDark
+                                ? "h-3.5 w-3.5 shrink-0 rounded border-purple-400 bg-zinc-900 accent-purple-400 focus:ring-purple-500"
+                                : "h-3.5 w-3.5 shrink-0 rounded border-purple-300 accent-purple-600 focus:ring-purple-500"
+                            }
                           />
-                          {t.notificationsPage.unreadOnly}
+                          <span className={isDark ? "text-purple-200" : "text-purple-700"}>
+                            {t.notificationsPage.unreadOnly}
+                          </span>
                         </label>
                         <button
                         type="button"
-                        className="text-sm font-medium text-purple-600 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-purple-400 dark:hover:text-purple-300"
+                        className="cursor-pointer text-sm font-medium text-purple-600 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-purple-300 dark:hover:text-purple-200"
                         disabled={
                           notifications.length === 0 ||
                           !notifications.some((n) => isNotificationUnread(n))
@@ -325,8 +428,8 @@ export function Navbar({ onNavigate }: NavbarProps) {
                               key={n.id}
                               className={`border-b border-border p-4 transition-colors last:border-b-0 ${
                                 unread
-                                  ? "border-l-[5px] border-l-purple-600 bg-background"
-                                  : "border-l-[5px] border-l-transparent bg-muted/30"
+                                  ? "border-l-[5px] border-l-purple-600 bg-background dark:border-l-purple-500 dark:bg-accent/25"
+                                  : "border-l-[5px] border-l-transparent bg-muted/30 dark:bg-muted/40"
                               }`}
                             >
                               <div
@@ -357,8 +460,10 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                   <h3
                                     className={
                                       unread
-                                        ? "font-bold text-gray-900 dark:text-foreground"
-                                        : "font-medium text-gray-400 dark:text-muted-foreground"
+                                        ? "font-bold text-purple-700 dark:text-purple-300"
+                                        : isDark
+                                          ? "font-medium text-zinc-400"
+                                          : "font-medium text-gray-500"
                                     }
                                   >
                                     {n.title}
@@ -366,8 +471,8 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                   <span
                                     className={`shrink-0 whitespace-nowrap text-xs ${
                                       unread
-                                        ? "text-gray-500 dark:text-muted-foreground"
-                                        : "text-gray-400 dark:text-muted-foreground/90"
+                                        ? "text-gray-500 dark:text-zinc-300"
+                                        : "text-gray-400 dark:text-zinc-500"
                                     }`}
                                   >
                                     {new Date(n.createdAt).toLocaleString(
@@ -380,8 +485,8 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                   <p
                                     className={`mb-2 text-sm ${
                                       unread
-                                        ? "font-medium text-purple-600 dark:text-purple-400"
-                                        : "font-medium text-purple-400/45 dark:text-purple-400/35"
+                                        ? "font-medium text-purple-600 dark:text-purple-300"
+                                        : "font-medium text-purple-500/80 dark:text-purple-400/90"
                                     }`}
                                   >
                                     {n.skillTitle}
@@ -390,8 +495,8 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                 <p
                                   className={`mb-3 text-sm leading-relaxed ${
                                     unread
-                                      ? "text-gray-700 dark:text-foreground/90"
-                                      : "text-gray-400 dark:text-muted-foreground/85"
+                                      ? "text-gray-700 dark:text-zinc-200"
+                                      : "text-gray-500 dark:text-zinc-400"
                                   }`}
                                 >
                                   {n.body}
@@ -406,10 +511,10 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                       e.stopPropagation();
                                       void goToExchangeMessages(n.exchangeRequestId);
                                     }}
-                                    className={`inline-flex items-center gap-2 text-sm font-medium ${
+                                    className={`inline-flex cursor-pointer items-center gap-2 text-sm font-medium ${
                                       unread
-                                        ? "text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
-                                        : "text-purple-500/55 hover:text-purple-500/75 dark:text-purple-400/45 dark:hover:text-purple-400/65"
+                                        ? "text-purple-600 hover:text-purple-700 dark:text-purple-300 dark:hover:text-purple-200"
+                                        : "text-purple-500/80 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300"
                                     }`}
                                   >
                                     <MessageCircle className="h-4 w-4 shrink-0" />
@@ -419,7 +524,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                 {token && n.id && unread ? (
                                   <button
                                     type="button"
-                                    className="relative z-10 text-sm text-gray-600 hover:text-gray-800 dark:text-muted-foreground dark:hover:text-foreground"
+                                    className="relative z-10 cursor-pointer text-sm text-gray-600 hover:text-gray-800 dark:text-zinc-300 dark:hover:text-zinc-100"
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
@@ -439,7 +544,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                 {token && n.id && !unread ? (
                                   <button
                                     type="button"
-                                    className="relative z-10 text-sm text-gray-400 hover:text-gray-500 dark:text-muted-foreground/80 dark:hover:text-muted-foreground"
+                                    className="relative z-10 cursor-pointer text-sm text-gray-400 hover:text-gray-500 dark:text-zinc-500 dark:hover:text-zinc-300"
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
@@ -465,7 +570,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                     <div className="border-t border-border bg-muted/20 p-3">
                       <Link
                         to={notifUnreadOnly ? `${PATHS.notifications}?unread=1` : PATHS.notifications}
-                        className="block w-full rounded-lg px-3 py-2 text-center text-sm font-medium text-purple-600 transition-colors hover:bg-purple-100 hover:text-purple-700 dark:text-purple-400 dark:hover:bg-purple-500/20 dark:hover:text-purple-300"
+                        className="block w-full cursor-pointer rounded-lg px-3 py-2 text-center text-sm font-medium text-purple-600 transition-colors hover:bg-purple-100 hover:text-purple-700 dark:text-purple-300 dark:hover:bg-purple-500/25 dark:hover:text-purple-200"
                         onClick={() => setNotifOpen(false)}
                       >
                         {t.nav.allNotifications}
@@ -482,14 +587,28 @@ export function Navbar({ onNavigate }: NavbarProps) {
                     </span>
                   </div>
 
-                  <div className="relative min-w-0 shrink-0">
+                  <div className="relative z-30 flex min-w-0 shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate("messages")}
+                      className="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-700 transition hover:bg-gray-200 dark:bg-muted dark:text-foreground dark:hover:bg-accent"
+                      aria-label={t.nav.messages}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      {displayedMessageCount > 0 ? (
+                        <span className="absolute right-0 top-0 inline-flex min-w-5 translate-x-1/3 -translate-y-1/3 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-5 text-white shadow-sm">
+                          {displayedMessageCount > 99 ? "99+" : displayedMessageCount}
+                        </span>
+                      ) : null}
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => {
                         setIsProfileMenuOpen((open) => !open);
                         setNotifOpen(false);
                       }}
-                      className="relative z-30 flex max-w-[min(100vw-12rem,280px)] min-w-0 items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-900"
+                      className="relative inline-flex max-w-[min(100vw-12rem,280px)] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-900"
                       aria-expanded={isProfileMenuOpen}
                       aria-haspopup="menu"
                       aria-label={t.nav.profile}
@@ -498,11 +617,11 @@ export function Navbar({ onNavigate }: NavbarProps) {
                         <img
                           src={user.avatarUrl}
                           alt=""
-                          className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10"
+                          className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10"
                         />
                       ) : (
                         <span
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-[11px] font-semibold uppercase leading-none tracking-tight text-white sm:text-xs"
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-xs font-semibold uppercase leading-none tracking-tight text-white"
                           aria-hidden
                         >
                           {initialsFromName(user?.name ?? "")}
