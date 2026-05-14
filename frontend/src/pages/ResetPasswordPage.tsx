@@ -2,28 +2,45 @@ import { useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { CheckCircle, Eye, EyeOff } from "lucide-react";
+import { CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import type { PageType } from "../App";
 import { useLanguage } from "../contexts/LanguageContext";
 import { BrandLogo } from "../components/common/BrandLogo";
+import { resetPasswordRequest } from "../api/auth";
+import { apiErrorDisplayMessage } from "../api/client";
 
 interface ResetPasswordPageProps {
   onNavigate?: (page: PageType) => void;
 }
 
 export function ResetPasswordPage({ onNavigate }: ResetPasswordPageProps) {
+  const [email, setEmail] = useState(
+    () => sessionStorage.getItem("timelink_reset_email") ?? "",
+  );
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordReset, setPasswordReset] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { t } = useLanguage();
   const a = t.auth.reset;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === confirmPassword && password.length >= 8) {
+    if (password !== confirmPassword || password.length < 8) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await resetPasswordRequest({ email, token: code, newPassword: password });
+      sessionStorage.removeItem("timelink_reset_email");
       setPasswordReset(true);
+    } catch (err) {
+      setError(apiErrorDisplayMessage(err, a.pwdMismatch));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -54,7 +71,35 @@ export function ResetPasswordPage({ onNavigate }: ResetPasswordPageProps) {
         <div className="rounded-3xl bg-card p-8 text-card-foreground shadow-2xl">
           {!passwordReset ? (
             <>
-              <form className="space-y-5" onSubmit={handleSubmit}>
+              <form className="space-y-5" onSubmit={(e) => void handleSubmit(e)}>
+                <div>
+                  <Label htmlFor="email">{t.auth.login.email}</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="john@example.com"
+                    className="mt-2"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="code">{t.auth.signup?.codeLabel ?? "Reset Code"}</Label>
+                  <Input
+                    id="code"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="000000"
+                    maxLength={6}
+                    className="mt-2 text-center tracking-widest text-lg"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    required
+                  />
+                </div>
+
                 <div>
                   <Label htmlFor="password">{a.newPassword}</Label>
                   <div className="relative mt-2">
@@ -123,11 +168,18 @@ export function ResetPasswordPage({ onNavigate }: ResetPasswordPageProps) {
                   )}
                 </div>
 
+                {error && (
+                  <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+                    {error}
+                  </p>
+                )}
+
                 <Button 
                   type="submit"
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-6"
-                  disabled={!passwordsMatch || !passwordLengthValid}
+                  disabled={!passwordsMatch || !passwordLengthValid || !email || code.length < 6 || loading}
                 >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   {a.resetBtn}
                 </Button>
               </form>

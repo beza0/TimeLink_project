@@ -139,6 +139,40 @@ public class RegistrationMailService {
         }
     }
 
+    /** Şifre sıfırlama kodu gönderir. */
+    public void sendPasswordResetCode(String fullName, String email, String code) {
+        if (!isMailDeliveryEnabled()) {
+            return;
+        }
+        JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+        if (mailSender == null) {
+            log.debug("JavaMailSender yok, şifre sıfırlama e-postası atlanıyor");
+            return;
+        }
+        String from = fromAddress();
+        try {
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(from);
+            msg.setTo(email);
+            msg.setSubject("Tiempo — şifre sıfırlama kodunuz");
+            msg.setText(
+                    "Merhaba " + fullName + ",\n\n"
+                            + "Şifre sıfırlama kodunuz:\n\n"
+                            + "    " + code + "\n\n"
+                            + "Bu kodu uygulamada girerek yeni şifrenizi belirleyebilirsiniz.\n"
+                            + "Kod 1 saat geçerlidir. Siz bu talebi yapmadıysanız bu iletiyi yok sayın.\n"
+            );
+            mailSender.send(msg);
+            log.info("Şifre sıfırlama e-postası gönderildi: {}", email);
+        } catch (Exception e) {
+            log.error("Şifre sıfırlama e-postası gönderilemedi ({})", email, e);
+            throw new IllegalStateException(
+                    "Şifre sıfırlama e-postası gönderilemedi. SMTP ayarlarını kontrol edin.",
+                    e
+            );
+        }
+    }
+
     /** SMTP kapalıyken basit hoş geldin (geliştirme). */
     public void sendWelcomeAfterRegister(User user) {
         if (!isMailDeliveryEnabled()) {

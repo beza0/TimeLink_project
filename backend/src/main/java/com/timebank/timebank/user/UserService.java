@@ -545,6 +545,80 @@ public class UserService {
     }
 
     /**
+     * Şifre sıfırlama talebi: 6 haneli kod üretir, e-posta gönderir (SMTP varsa).
+     * Kullanıcı bulunamazsa sessizce döner (e-posta sızıntısı önlenir).
+     */
+    @Transactional
+    public void forgotPassword(String emailRaw) {
+        if (emailRaw == null || emailRaw.isBlank()) {
+            return;
+        }
+        String email = emailRaw.trim().toLowerCase();
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null || !user.isEmailVerified()) {
+            return;
+        }
+        String code = newVerificationCode();
+        user.setPasswordResetToken(code);
+        user.setPasswordResetExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        userRepository.save(user);
+
+        if (registrationMailService.isMailDeliveryEnabled()) {
+            registrationMailService.sendPasswordResetCode(user.getFullName(), email, code);
+        } else {
+            log.warn("SMTP kapalı — şifre sıfırlama kodu. e-posta={} kod={}", email, code);
+        }
+    }
+
+    /**
+     * Sıfırlama kodu ile yeni şifre belirler.
+     */
+    @Transactional
+    public void resetPassword(String emailRaw, String tokenRaw, String newPassword) {
+        if (emailRaw == null || emailRaw.isBlank()
+                || tokenRaw == null || tokenRaw.isBlank()
+                || newPassword == null || newPassword.isBlank()) {
+            throw new IllegalArgumentException("E-posta, kod ve yeni şifre gerekli.");
+        }
+        String email = emailRaw.trim().toLowerCase();
+        String token = tokenRaw.trim().replaceAll("\\s+", "");
+
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new IllegalArgumentException("Geçersiz kod veya e-posta."));
+
+        String expected = user.getPasswordResetToken();
+        if (expected == null || expected.isBlank()) {
+            throw new IllegalArgumentException("Geçersiz veya süresi dolmuş sıfırlama kodu.");
+        }
+        Instant exp = user.getPasswordResetExpiresAt();
+        if (exp != null && Instant.now().isAfter(exp)) {
+            throw new IllegalArgumentException("Sıfırlama kodunun süresi dolmuş. Lütfen yeni bir kod talep edin.");
+        }
+        if (!constantTimeEquals(expected, token)) {
+            throw new IllegalArgumentException("Geçersiz sıfırlama kodu.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        userRepository.save(user);
+    }
+
+    /**
+     * Oturum açmış kullanıcının mevcut şifresini doğrulayıp yenisiyle değiştirir.
+     */
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        User user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new BadCredentialsException("Kullanıcı bulunamadı"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new BadCredentialsException("Mevcut şifre hatalı.");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    /**
      * Kullanıcıyı ve ona bağlı tüm verileri siler: beceriler, talepler, mesajlar, yorumlar,
      * bildirimler, zaman işlemleri ve kullanıcı kaydı.
      */

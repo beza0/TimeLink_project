@@ -81,6 +81,12 @@ public class User {
     @Column(name = "email_verification_expires_at")
     private Instant emailVerificationExpiresAt;
 
+    @Column(name = "password_reset_token", length = 128)
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_expires_at")
+    private Instant passwordResetExpiresAt;
+
     // --- Lifecycle Hooks ---
 
     @PrePersist
@@ -226,6 +232,22 @@ public class User {
 
     public void setEmailVerificationExpiresAt(Instant emailVerificationExpiresAt) {
         this.emailVerificationExpiresAt = emailVerificationExpiresAt;
+    }
+
+    public String getPasswordResetToken() {
+        return passwordResetToken;
+    }
+
+    public void setPasswordResetToken(String passwordResetToken) {
+        this.passwordResetToken = passwordResetToken;
+    }
+
+    public Instant getPasswordResetExpiresAt() {
+        return passwordResetExpiresAt;
+    }
+
+    public void setPasswordResetExpiresAt(Instant passwordResetExpiresAt) {
+        this.passwordResetExpiresAt = passwordResetExpiresAt;
     }
 
     /**

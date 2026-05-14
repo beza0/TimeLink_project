@@ -62,6 +62,28 @@ export async function resendVerificationEmail(email: string): Promise<void> {
   });
 }
 
+export async function forgotPasswordRequest(email: string): Promise<void> {
+  return apiFetch<void>("/api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+}
+
+export async function resetPasswordRequest(body: {
+  email: string;
+  token: string;
+  newPassword: string;
+}): Promise<void> {
+  return apiFetch<void>("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({
+      email: body.email.trim().toLowerCase(),
+      token: body.token.trim(),
+      newPassword: body.newPassword,
+    }),
+  });
+}
+
 export async function socialLoginRequest(body: {
   provider: "google" | "facebook";
   accessToken: string;

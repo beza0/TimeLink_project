@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import App from "./App.tsx";
 import { AuthProvider } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -15,7 +16,9 @@ createRoot(document.getElementById("root")!).render(
   >
     <LanguageProvider>
       <AuthProvider>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </AuthProvider>
     </LanguageProvider>
   </ThemeProvider>,

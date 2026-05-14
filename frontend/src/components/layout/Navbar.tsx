@@ -603,13 +603,14 @@ export function Navbar({ onNavigate }: NavbarProps) {
                       ) : null}
                     </button>
 
+                    <div className="relative">
                     <button
                       type="button"
                       onClick={() => {
                         setIsProfileMenuOpen((open) => !open);
                         setNotifOpen(false);
                       }}
-                      className="relative inline-flex max-w-[min(100vw-12rem,280px)] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-900"
+                      className="inline-flex max-w-[min(100vw-12rem,280px)] min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-zinc-900"
                       aria-expanded={isProfileMenuOpen}
                       aria-haspopup="menu"
                       aria-label={t.nav.profile}
@@ -640,7 +641,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                           aria-hidden
                           onClick={() => setIsProfileMenuOpen(false)}
                         />
-                        <div className="fixed right-4 top-[4.75rem] z-20 w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-border bg-popover px-6 py-4 text-popover-foreground shadow-lg ring-1 ring-black/5 sm:right-6 lg:right-8 dark:shadow-black/50 dark:ring-white/10">
+                        <div className="absolute right-0 top-full z-20 mt-2 w-56 rounded-2xl border border-border bg-popover px-6 py-4 text-popover-foreground shadow-lg ring-1 ring-black/5 dark:shadow-black/50 dark:ring-white/10">
                           <div className="flex flex-col gap-3">
                             <button
                               type="button"
@@ -650,10 +651,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                 handleNavigate("profile");
                               }}
                             >
-                              <User
-                                className="h-5 w-5 shrink-0 text-muted-foreground"
-                                strokeWidth={1.5}
-                              />
+                              <User className="h-5 w-5 shrink-0" />
                               {t.nav.viewProfile}
                             </button>
                             <button
@@ -664,31 +662,26 @@ export function Navbar({ onNavigate }: NavbarProps) {
                                 handleNavigate("settings");
                               }}
                             >
-                              <Settings
-                                className="h-5 w-5 shrink-0 text-muted-foreground"
-                                strokeWidth={1.5}
-                              />
+                              <Settings className="h-5 w-5 shrink-0" />
                               {t.nav.settings}
                             </button>
                             <div className="border-t border-border" />
                             <button
                               type="button"
-                              className="flex w-full items-center gap-3 whitespace-nowrap rounded-xl py-2 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-950/45"
+                              className="flex w-full items-center gap-3 whitespace-nowrap rounded-xl py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-950/40"
                               onClick={() => handleLogout()}
                             >
                               <LogOut
-                                className="h-5 w-5 shrink-0 text-red-600 dark:text-red-500"
-                                strokeWidth={1.5}
+                                className="h-5 w-5 shrink-0"
                                 aria-hidden
                               />
-                              <span className="text-red-600 dark:text-red-500">
-                                {t.nav.logout}
-                              </span>
+                              {t.nav.logout}
                             </button>
                           </div>
                         </div>
                       </>
                     ) : null}
+                    </div>
                   </div>
                 </div>
                 </>

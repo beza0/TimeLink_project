@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { ArrowLeft, Mail, CheckCircle } from "lucide-react";
+import { ArrowLeft, Mail, CheckCircle, Loader2 } from "lucide-react";
 import type { PageType } from "../App";
 import { useLanguage } from "../contexts/LanguageContext";
 import { BrandLogo } from "../components/common/BrandLogo";
+import { forgotPasswordRequest } from "../api/auth";
 
 interface ForgotPasswordPageProps {
   onNavigate?: (page: PageType) => void;
@@ -14,12 +15,32 @@ interface ForgotPasswordPageProps {
 export function ForgotPasswordPage({ onNavigate }: ForgotPasswordPageProps) {
   const [emailSent, setEmailSent] = useState(false);
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const { t } = useLanguage();
   const a = t.auth.forgot;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEmailSent(true);
+    setLoading(true);
+    try {
+      await forgotPasswordRequest(email);
+      setEmailSent(true);
+    } catch (err) {
+      setEmailSent(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      await forgotPasswordRequest(email);
+    } catch {
+      // silent — don't reveal whether the email exists
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,7 +67,7 @@ export function ForgotPasswordPage({ onNavigate }: ForgotPasswordPageProps) {
         <div className="rounded-3xl bg-card p-8 text-card-foreground shadow-2xl">
           {!emailSent ? (
             <>
-              <form className="space-y-5" onSubmit={handleSubmit}>
+              <form className="space-y-5" onSubmit={(e) => void handleSubmit(e)}>
                 <div>
                   <Label htmlFor="email">{t.auth.login.email}</Label>
                   <Input 
@@ -63,7 +84,9 @@ export function ForgotPasswordPage({ onNavigate }: ForgotPasswordPageProps) {
                 <Button 
                   type="submit"
                   className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-6"
+                  disabled={loading}
                 >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   {a.sendLink}
                 </Button>
               </form>
@@ -100,7 +123,10 @@ export function ForgotPasswordPage({ onNavigate }: ForgotPasswordPageProps) {
                 <div className="space-y-3">
                   <Button 
                     className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-6"
-                    onClick={() => onNavigate?.("reset-password")}
+                    onClick={() => {
+                      sessionStorage.setItem("timelink_reset_email", email);
+                      onNavigate?.("reset-password");
+                    }}
                   >
                     <Mail className="w-4 h-4 mr-2" />
                     {a.openDemo}
@@ -109,8 +135,10 @@ export function ForgotPasswordPage({ onNavigate }: ForgotPasswordPageProps) {
                   <Button 
                     variant="outline"
                     className="w-full"
-                    onClick={() => setEmailSent(false)}
+                    disabled={loading}
+                    onClick={() => void handleResend()}
                   >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     {a.resend}
                   </Button>
                 </div>

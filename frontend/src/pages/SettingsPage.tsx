@@ -16,7 +16,7 @@ import { useAuth } from "../contexts/AuthContext";
 import type { PageType } from "../App";
 import type { Locale } from "../language";
 import { Moon, Sun, Trash2 } from "lucide-react";
-import { deleteMyAccount } from "../api/user";
+import { changePassword, deleteMyAccount } from "../api/user";
 import { apiErrorDisplayMessage } from "../api/client";
 import {
   Modal,
@@ -47,6 +47,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -54,7 +55,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
 
   const activeTheme = mounted ? (resolvedTheme ?? theme ?? "light") : "light";
 
-  const handlePasswordSubmit = (e: FormEvent) => {
+  const handlePasswordSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setPasswordSuccess(false);
     setPasswordError(null);
@@ -66,10 +67,22 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
       setPasswordError(s.passwordMismatch);
       return;
     }
-    setPasswordSuccess(true);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
+    if (!token) {
+      setPasswordError(s.passwordMismatch);
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      await changePassword(token, { currentPassword, newPassword });
+      setPasswordSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setPasswordError(apiErrorDisplayMessage(err, s.passwordMismatch));
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -111,7 +124,7 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
               <CardDescription>{s.passwordDesc}</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <form onSubmit={(e) => void handlePasswordSubmit(e)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="current-password">{s.currentPassword}</Label>
                   <Input
@@ -158,8 +171,9 @@ export function SettingsPage({ onNavigate }: SettingsPageProps) {
                 <Button
                   type="submit"
                   className="bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                  disabled={passwordLoading}
                 >
-                  {s.updatePassword}
+                  {passwordLoading ? t.common.loading : s.updatePassword}
                 </Button>
               </form>
             </CardContent>

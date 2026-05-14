@@ -1,8 +1,11 @@
 package com.timebank.timebank.user;
 
+import com.timebank.timebank.user.dto.ChangePasswordRequest;
+import com.timebank.timebank.user.dto.ForgotPasswordRequest;
 import com.timebank.timebank.user.dto.LoginRequest;
 import com.timebank.timebank.user.dto.LoginResponse;
 import com.timebank.timebank.user.dto.RegisterRequest;
+import com.timebank.timebank.user.dto.ResetPasswordRequest;
 import com.timebank.timebank.user.dto.ResendVerificationRequest;
 import com.timebank.timebank.user.dto.SocialLoginRequest;
 import com.timebank.timebank.user.dto.UpdateUserProfileRequest;
@@ -85,6 +88,27 @@ public class UserController {
     @PostMapping("/auth/social-login")
     public ResponseEntity<LoginResponse> socialLogin(@Valid @RequestBody SocialLoginRequest req) {
         return ResponseEntity.ok(userService.socialLogin(req));
+    }
+
+    @PostMapping("/auth/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+        userService.forgotPassword(req.getEmail());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/auth/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        userService.resetPassword(req.getEmail(), req.getToken(), req.getNewPassword());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/users/me/change-password")
+    public ResponseEntity<Void> changePassword(
+            @Valid @RequestBody ChangePasswordRequest req,
+            Authentication authentication
+    ) {
+        userService.changePassword(authentication.getName(), req.getCurrentPassword(), req.getNewPassword());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")

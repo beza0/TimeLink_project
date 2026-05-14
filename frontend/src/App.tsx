@@ -1,4 +1,6 @@
 import { BrowserRouter } from "react-router-dom";
+import { useTheme } from "next-themes";
+import { Toaster } from "sonner";
 import { AppRoutes } from "./navigation/AppRoutes";
 
 // Sayfa türü — navbar ve yönlendirme ile aynı isim
@@ -31,9 +33,16 @@ export type PageType =
   | "faq";
 
 export default function App() {
+  const { resolvedTheme } = useTheme();
+
   return (
     <BrowserRouter>
       <AppRoutes />
+      <Toaster
+        position="top-right"
+        richColors
+        theme={(resolvedTheme as "light" | "dark") ?? "dark"}
+      />
     </BrowserRouter>
   );
 }

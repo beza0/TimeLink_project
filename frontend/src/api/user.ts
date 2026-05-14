@@ -62,6 +62,17 @@ export function fetchMyDashboard(token: string) {
   });
 }
 
+export function changePassword(
+  token: string,
+  body: { currentPassword: string; newPassword: string },
+) {
+  return apiFetch<void>("/api/users/me/change-password", {
+    method: "POST",
+    token,
+    body: JSON.stringify(body),
+  });
+}
+
 export function deleteMyAccount(token: string) {
   return apiFetch<void>("/api/users/me/delete", {
     method: "POST",

@@ -58,6 +58,14 @@ public class UserSchemaPatch implements ApplicationRunner {
                         + "ON users (email_verification_token) "
                         + "WHERE email_verification_token IS NOT NULL",
                 "idx_users_email_verification_token");
+        executeIgnore(
+                jdbcTemplate,
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR(128)",
+                "users.password_reset_token");
+        executeIgnore(
+                jdbcTemplate,
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_expires_at TIMESTAMPTZ",
+                "users.password_reset_expires_at");
     }
 
     private void executeIgnore(JdbcTemplate jdbcTemplate, String sql, String label) {

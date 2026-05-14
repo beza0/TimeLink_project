@@ -24,6 +24,7 @@ import {
   ModalTitle,
 } from "../components/ui/modal";
 import {
+  ArrowLeft,
   Search,
   Send,
   Check,
@@ -320,6 +321,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   const sd = t.skillDetail;
   const { user, token, patchUser } = useAuth();
   const [resolvedMyUserId, setResolvedMyUserId] = useState<string | null>(null);
+  const effectiveMyUserId = user?.id ?? resolvedMyUserId;
   const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState<ConversationRow[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -338,6 +340,8 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   const [searchQuery, setSearchQuery] = useState("");
   const [threadLines, setThreadLines] = useState<ThreadLine[]>([]);
   const threadScrollRef = useRef<HTMLDivElement | null>(null);
+  /** Dar ekranda geri ile sohbet panelini kapattıysa, listeyi tekrar doldurunca ilk satırı yeniden otomatik seçme */
+  const userClosedConversationPaneRef = useRef(false);
   const [loadingThread, setLoadingThread] = useState(false);
   /** Mesaj gönderme / kabul-red vb.; rezervasyon modalı `bookError` kullanır (karışmasın). */
   const [chatActionError, setChatActionError] = useState<string | null>(null);
@@ -391,7 +395,11 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
         fetchSentExchangeRequests(token),
         fetchReceivedExchangeRequests(token),
       ]);
-      const next = mergeExchanges(sent, received, user?.id);
+      const next = mergeExchanges(
+        sent,
+        received,
+        effectiveMyUserId ?? undefined,
+      );
       setRows(next);
       return next;
     } catch {
@@ -400,14 +408,18 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
     } finally {
       setLoadingList(false);
     }
-  }, [token, user?.id]);
+  }, [token, effectiveMyUserId]);
 
   const selected = useMemo(() => {
     if (!selectedOtherUserId) return null;
     const row = rows.find((r) => r.otherUserId === selectedOtherUserId) ?? null;
     if (!row) return null;
     const ex =
-      row.exchanges.find((e) => e.id === activeExchangeId) ??
+      row.exchanges.find(
+        (e) =>
+          activeExchangeId &&
+          e.id.toLowerCase() === activeExchangeId.toLowerCase(),
+      ) ??
       row.exchanges[0] ??
       null;
     if (!ex) return null;
@@ -415,10 +427,9 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
       row,
       ex,
       otherName: row.otherName,
-      uiStatus: toUiStatus(ex, user?.id),
+      uiStatus: toUiStatus(ex, effectiveMyUserId ?? undefined),
     };
-  }, [rows, selectedOtherUserId, activeExchangeId, user?.id]);
-  const effectiveMyUserId = user?.id ?? resolvedMyUserId;
+  }, [rows, selectedOtherUserId, activeExchangeId, effectiveMyUserId]);
   const selectedOtherId = selected
     ? getOtherUserId(selected.ex, effectiveMyUserId ?? undefined).toLowerCase()
     : null;
@@ -722,7 +733,12 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   useEffect(() => {
     if (!openFromNavExchangeId || rows.length === 0) return;
     for (const r of rows) {
-      if (r.exchanges.some((e) => e.id === openFromNavExchangeId)) {
+      if (
+        r.exchanges.some(
+          (e) =>
+            e.id.toLowerCase() === openFromNavExchangeId.toLowerCase(),
+        )
+      ) {
         setSelectedOtherUserId(r.otherUserId);
         setActiveExchangeId(openFromNavExchangeId);
         setOpenFromNavExchangeId(null);
@@ -744,6 +760,25 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
     setOpenFromNavUserId(null);
   }, [rows, openFromNavUserId]);
 
+  /** İlk yüklemede (veya sayfa yeniden açıldığında) en güncel konuşmayı sağ panelde aç; bildirim/?open= yönlendirmesi varken bekleme */
+  useEffect(() => {
+    if (!token || loadingList || rows.length === 0) return;
+    if (openFromNavExchangeId || openFromNavUserId) return;
+    if (selectedOtherUserId) return;
+    if (userClosedConversationPaneRef.current) return;
+    const first = rows[0];
+    if (!first?.exchanges[0]) return;
+    setSelectedOtherUserId(first.otherUserId);
+    setActiveExchangeId(first.exchanges[0].id);
+  }, [
+    token,
+    loadingList,
+    rows,
+    selectedOtherUserId,
+    openFromNavExchangeId,
+    openFromNavUserId,
+  ]);
+
   useEffect(() => {
     if (!selectedOtherUserId) return;
     const row = rows.find((r) => r.otherUserId === selectedOtherUserId);
@@ -754,7 +789,9 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
     }
     if (
       !activeExchangeId ||
-      !row.exchanges.some((e) => e.id === activeExchangeId)
+      !row.exchanges.some(
+        (e) => e.id.toLowerCase() === activeExchangeId.toLowerCase(),
+      )
     ) {
       setActiveExchangeId(row.exchanges[0].id);
     }
@@ -851,7 +888,9 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
           allLines.push({
             id: `initial-${ex.id}`,
             kind: "message",
-            sender: isInitialMessageFromMe(ex, user?.id) ? "me" : "other",
+            sender: isInitialMessageFromMe(ex, effectiveMyUserId ?? undefined)
+              ? "me"
+              : "other",
             text: ex.message,
             timeLabel: new Date(ex.createdAt).toLocaleString(
               locale === "tr" ? "tr-TR" : "en-US",
@@ -860,7 +899,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
             sortMs: createdMs,
           });
 
-          const status = toUiStatus(ex, user?.id);
+          const status = toUiStatus(ex, effectiveMyUserId ?? undefined);
           if (status === "rejected" || status === "pending-incoming" || status === "pending-outgoing") {
             allLines.push({
               id: `offer-${ex.id}`,
@@ -888,7 +927,9 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
               return {
                 id: msg.id,
                 kind: "message",
-                sender: sameUserId(msg.senderId, user?.id) ? "me" : "other",
+                sender: sameUserId(msg.senderId, effectiveMyUserId ?? undefined)
+                  ? "me"
+                  : "other",
                 text: msg.body,
                 timeLabel: new Date(msg.createdAt).toLocaleString(
                   locale === "tr" ? "tr-TR" : "en-US",
@@ -911,7 +952,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
         setLoadingThread(false);
       }
     },
-    [token, user?.id, locale],
+    [token, effectiveMyUserId, locale],
   );
 
   useEffect(() => {
@@ -1233,9 +1274,12 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
   return (
     <PageLayout onNavigate={onNavigate}>
       <div className="pt-20 pb-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto h-[calc(100vh-7rem)]">
-          <Card className="flex h-full flex-row overflow-hidden rounded-2xl border-0 shadow-lg">
-            <div className="flex w-96 shrink-0 flex-col border-r border-border">
+        <div className="mx-auto h-[calc(min(100vh,_100dvh)-7rem)] min-h-0 w-full max-w-7xl">
+          <Card className="flex h-full min-h-0 flex-row gap-0 overflow-hidden rounded-2xl border-0 shadow-lg">
+            <div className={cn(
+              "flex min-h-0 w-full flex-col border-r border-border sm:w-96 sm:shrink-0",
+              selectedOtherUserId ? "hidden sm:flex" : "flex",
+            )}>
               <div className="border-b border-border p-4">
                 <h2 className="mb-4 text-xl text-foreground">{m.title}</h2>
                 <div className="relative">
@@ -1249,7 +1293,7 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {loadingList ? (
                   <p className="p-6 text-sm text-muted-foreground">
                     {t.common.loading}
@@ -1352,7 +1396,10 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
               </div>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className={cn(
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+              selectedOtherUserId ? "flex" : "hidden sm:flex",
+            )}>
               {!selected ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
                   <MessageCircle className="h-12 w-12 text-muted-foreground/40" />
@@ -1367,6 +1414,17 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                 <>
                   <div className="flex shrink-0 items-center justify-between border-b border-border p-4">
                     <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                      <button
+                        type="button"
+                        className="mr-1 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent sm:hidden"
+                        onClick={() => {
+                          userClosedConversationPaneRef.current = true;
+                          setSelectedOtherUserId(null);
+                          setActiveExchangeId(null);
+                        }}
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </button>
                       <button
                         type="button"
                         onClick={openOtherProfile}
@@ -1549,7 +1607,10 @@ export function MessagesPage({ onNavigate, onViewUserProfile }: MessagesPageProp
                     </div>
                   )}
 
-                  <div ref={threadScrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+                  <div
+                    ref={threadScrollRef}
+                    className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4"
+                  >
                     {loadingThread ? (
                       <p className="text-center text-sm text-muted-foreground">
                         {t.common.loading}
