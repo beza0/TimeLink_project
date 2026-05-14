@@ -15,6 +15,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 
+import io.jsonwebtoken.security.WeakKeyException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -99,6 +101,21 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.badRequest().body(error);
+    }
+
+    @ExceptionHandler(WeakKeyException.class)
+    public ResponseEntity<ErrorResponse> handleWeakJwtKey(
+            WeakKeyException ex,
+            HttpServletRequest request
+    ) {
+        log.error("JWT zayıf anahtar: {}", request.getRequestURI(), ex);
+        ErrorResponse error = new ErrorResponse(
+                Instant.now(),
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "JWT yapılandırması geçersiz: gizli anahtar HS256 için çok kısa (en az 32 ASCII karakter). Render’da JWT_SECRET’i uzatın.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

@@ -332,10 +332,12 @@ public class UserService {
             throw new EmailVerificationRequiredException();
         }
 
-        String token = jwtService.generateToken(
-                user.getEmail(),
-                user.getRole()
-        );
+        String role = user.getRole();
+        if (role == null || role.isBlank()) {
+            role = "USER";
+        }
+
+        String token = jwtService.generateToken(user.getEmail(), role);
 
         return new LoginResponse(
                 token,

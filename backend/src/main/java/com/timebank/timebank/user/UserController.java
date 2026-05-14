@@ -80,7 +80,7 @@ public class UserController {
     }
 
     @PostMapping("/auth/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
         LoginResponse response = userService.login(req);
         return ResponseEntity.ok(response);
     }
